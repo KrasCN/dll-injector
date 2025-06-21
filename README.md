@@ -4,7 +4,7 @@ An advanced DLL injection tool developed in Go with Fyne, designed for the Windo
 
 ## Screenshot
 
-![DLL Injector UI](https://github.com/whispin/dll-injector/blob/master/screenshot/main-ui.jpg?raw=true)
+![DLL Injector UI](https://github.com/whispin/dll-injector/blob/main/screenshot/main-ui.jpg?raw=true)
 
 ## Features
 
