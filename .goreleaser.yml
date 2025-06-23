@@ -1,0 +1,166 @@
+project_name: dll-injector
+
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+
+builds:
+  - id: windows-amd64
+    main: ./cmd/dll-injector
+    binary: dll-injector
+    goos:
+      - windows
+    goarch:
+      - amd64
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+      - -X main.builtBy=goreleaser
+    flags:
+      - -trimpath
+
+  - id: windows-386
+    main: ./cmd/dll-injector
+    binary: dll-injector
+    goos:
+      - windows
+    goarch:
+      - 386
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+      - -X main.builtBy=goreleaser
+    flags:
+      - -trimpath
+
+archives:
+  - id: windows-archives
+    builds:
+      - windows-amd64
+      - windows-386
+    name_template: "{{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+    format: zip
+    files:
+      - README.md
+      - LICENSE
+      - CHANGELOG.md
+      - examples/**/*
+
+checksum:
+  name_template: 'checksums.txt'
+  algorithm: sha256
+
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^ci:'
+      - '^chore:'
+      - '^style:'
+      - Merge pull request
+      - Merge branch
+  groups:
+    - title: 'New Features'
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: 'Security Updates'
+      regexp: '^.*?sec(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: 'Bug Fixes'
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 2
+    - title: 'Performance Improvements'
+      regexp: '^.*?perf(\([[:word:]]+\))??!?:.+$'
+      order: 3
+    - title: 'Refactors'
+      regexp: '^.*?refactor(\([[:word:]]+\))??!?:.+$'
+      order: 4
+    - title: 'Documentation'
+      regexp: '^.*?docs(\([[:word:]]+\))??!?:.+$'
+      order: 5
+    - title: 'Other Changes'
+      order: 999
+
+release:
+  github:
+    owner: whispin
+    name: dll-injector
+  draft: false
+  prerelease: auto
+  mode: replace
+  header: |
+    ## DLL Injector {{ .Tag }}
+    
+    This release contains the following changes:
+  footer: |
+    ## Installation
+    
+    Download the appropriate binary for your system:
+    - **Windows x64**: `dll-injector-{{ .Version }}-windows-amd64.zip`
+    - **Windows x86**: `dll-injector-{{ .Version }}-windows-386.zip`
+    
+    Extract the archive and run the executable.
+    
+    ## Usage
+    
+    ```bash
+    # Basic injection
+    dll-injector.exe -dll path/to/your.dll -process target.exe
+    
+    # Advanced injection with specific method
+    dll-injector.exe -dll path/to/your.dll -pid 1234 -method standard
+    ```
+    
+    ## Security Notice
+    
+    This tool is intended for legitimate security research and educational purposes only.
+    Please ensure you have proper authorization before using this tool.
+    
+    **Full Changelog**: https://github.com/whispin/dll-injector/compare/{{ .PreviousTag }}...{{ .Tag }}
+  
+  extra_files:
+    - glob: ./examples/**/*
+
+milestones:
+  - close: true
+    fail_on_error: false
+    name_template: "{{ .Tag }}"
+
+announce:
+  skip: true
+
+# Uncomment if you want to publish to package managers
+# brews:
+#   - name: dll-injector
+#     tap:
+#       owner: whispin
+#       name: homebrew-tap
+#     homepage: https://github.com/whispin/dll-injector
+#     description: "Advanced DLL injection tool for Windows"
+#     license: MIT
+#     install: |
+#       bin.install "dll-injector"
+
+# scoops:
+#   - name: dll-injector
+#     bucket:
+#       owner: whispin
+#       name: scoop-bucket
+#     homepage: https://github.com/whispin/dll-injector
+#     description: "Advanced DLL injection tool for Windows"
+#     license: MIT

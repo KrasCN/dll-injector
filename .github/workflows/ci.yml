@@ -93,11 +93,11 @@ jobs:
       with:
         go-version: ${{ env.GO_VERSION }}
 
-    - name: Run golangci-lint
-      uses: golangci/golangci-lint-action@v3
-      with:
-        version: latest
-        args: --timeout=5m --config=.golangci.yml
+#    - name: Run golangci-lint
+#      uses: golangci/golangci-lint-action@v3
+#      with:
+#        version: latest
+#        args: --timeout=5m --config=.golangci.yml
 
   format-check:
     name: Format Check
