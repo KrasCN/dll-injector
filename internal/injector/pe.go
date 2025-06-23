@@ -118,7 +118,7 @@ type ImageBaseRelocation struct {
 	SizeOfBlock    uint32
 }
 
-// ParsePEHeader 解析PE文件头
+// ParsePEHeader parses PE file header
 func ParsePEHeader(dllBytes []byte) (*PEHeader, error) {
 	if len(dllBytes) < 64 {
 		return nil, fmt.Errorf("DLL file is too small")
@@ -186,7 +186,7 @@ func ParsePEHeader(dllBytes []byte) (*PEHeader, error) {
 	}, nil
 }
 
-// MapSections 映射PE文件各节到远程进程内存
+// MapSections maps PE file sections to remote process memory
 func MapSections(hProcess windows.Handle, dllBytes []byte, baseAddress uintptr, peHeader *PEHeader) error {
 	// 首先写入PE头
 	headerSize := peHeader.OptionalHeader.SizeOfHeaders
@@ -223,7 +223,7 @@ func MapSections(hProcess windows.Handle, dllBytes []byte, baseAddress uintptr, 
 	return nil
 }
 
-// FixImports 修复导入表
+// FixImports fixes import table
 func FixImports(hProcess windows.Handle, baseAddress uintptr, peHeader *PEHeader) error {
 	// 获取导入表目录
 	importDir := peHeader.OptionalHeader.DataDirectory[1] // IMAGE_DIRECTORY_ENTRY_IMPORT = 1
@@ -290,13 +290,32 @@ func FixImports(hProcess windows.Handle, baseAddress uintptr, peHeader *PEHeader
 		}
 
 		// 遍历每个导入函数
+		// 确定指针大小（32位或64位）
+		var ptrSize uintptr
+		if unsafe.Sizeof(uintptr(0)) == 8 {
+			ptrSize = 8 // 64位
+		} else {
+			ptrSize = 4 // 32位
+		}
+
 		for j := uint32(0); ; j++ {
 			// 计算当前Thunk的地址
-			thunkAddr := baseAddress + uintptr(thunk) + uintptr(j)*unsafe.Sizeof(uint64(0))
+			thunkAddr := baseAddress + uintptr(thunk) + uintptr(j)*ptrSize
 			var thunkData uint64
-			err := windows.ReadProcessMemory(hProcess, thunkAddr, (*byte)(unsafe.Pointer(&thunkData)), unsafe.Sizeof(thunkData), &bytesRead)
-			if err != nil {
-				return fmt.Errorf("Failed to read thunk data: %v", err)
+
+			// 根据架构读取不同大小的数据
+			if ptrSize == 8 {
+				err := windows.ReadProcessMemory(hProcess, thunkAddr, (*byte)(unsafe.Pointer(&thunkData)), 8, &bytesRead)
+				if err != nil {
+					return fmt.Errorf("Failed to read thunk data: %v", err)
+				}
+			} else {
+				var thunkData32 uint32
+				err := windows.ReadProcessMemory(hProcess, thunkAddr, (*byte)(unsafe.Pointer(&thunkData32)), 4, &bytesRead)
+				if err != nil {
+					return fmt.Errorf("Failed to read thunk data: %v", err)
+				}
+				thunkData = uint64(thunkData32)
 			}
 
 			// 如果Thunk为0，说明已经到达导入函数列表末尾
@@ -305,21 +324,40 @@ func FixImports(hProcess windows.Handle, baseAddress uintptr, peHeader *PEHeader
 			}
 
 			// 计算IAT条目的地址
-			iatEntryAddr := baseAddress + uintptr(importDesc.FirstThunk) + uintptr(j)*unsafe.Sizeof(uint64(0))
+			iatEntryAddr := baseAddress + uintptr(importDesc.FirstThunk) + uintptr(j)*ptrSize
 
 			// 判断是按名称导入还是按序号导入
 			var procAddr uintptr
-			if (thunkData & 0x8000000000000000) != 0 {
+			var isOrdinal bool
+
+			if ptrSize == 8 {
+				isOrdinal = (thunkData & 0x8000000000000000) != 0
+			} else {
+				isOrdinal = (thunkData & 0x80000000) != 0
+			}
+
+			if isOrdinal {
 				// 按序号导入
 				ordinal := uint16(thunkData & 0xFFFF)
-				procAddr, err = windows.GetProcAddressByOrdinal(hModule, uintptr(ordinal))
-				if err != nil {
-					return fmt.Errorf("Failed to get function address by ordinal: %v", err)
+				// 使用GetProcAddress的序号版本
+				kernel32 := windows.NewLazySystemDLL("kernel32.dll")
+				getProcAddress := kernel32.NewProc("GetProcAddress")
+				r1, _, err := getProcAddress.Call(uintptr(hModule), uintptr(ordinal))
+				if r1 == 0 {
+					return fmt.Errorf("Failed to get function address by ordinal %d: %v", ordinal, err)
 				}
+				procAddr = uintptr(r1)
 			} else {
 				// 按名称导入
 				// 读取导入函数名称
-				nameAddr := baseAddress + uintptr(thunkData&0x7FFFFFFFFFFFFFFF) + 2 // +2跳过Hint
+				var nameRVA uint64
+				if ptrSize == 8 {
+					nameRVA = thunkData & 0x7FFFFFFFFFFFFFFF
+				} else {
+					nameRVA = thunkData & 0x7FFFFFFF
+				}
+
+				nameAddr := baseAddress + uintptr(nameRVA) + 2 // +2跳过Hint
 				funcName := make([]byte, 256)
 				err := windows.ReadProcessMemory(hProcess, nameAddr, &funcName[0], 256, &bytesRead)
 				if err != nil {
@@ -339,13 +377,13 @@ func FixImports(hProcess windows.Handle, baseAddress uintptr, peHeader *PEHeader
 				// 获取函数地址
 				procAddr, err = windows.GetProcAddress(hModule, funcNameStr)
 				if err != nil {
-					return fmt.Errorf("Failed to get function address: %v", err)
+					return fmt.Errorf("Failed to get function address for %s: %v", funcNameStr, err)
 				}
 			}
 
 			// 写入函数地址到IAT
 			var bytesWritten uintptr
-			err = WriteProcessMemory(hProcess, iatEntryAddr, unsafe.Pointer(&procAddr), unsafe.Sizeof(procAddr), &bytesWritten)
+			err = WriteProcessMemory(hProcess, iatEntryAddr, unsafe.Pointer(&procAddr), ptrSize, &bytesWritten)
 			if err != nil {
 				return fmt.Errorf("Failed to write function address to IAT: %v", err)
 			}
@@ -355,7 +393,7 @@ func FixImports(hProcess windows.Handle, baseAddress uintptr, peHeader *PEHeader
 	return nil
 }
 
-// FixRelocations 修复重定位
+// FixRelocations fixes relocations
 func FixRelocations(hProcess windows.Handle, baseAddress uintptr, peHeader *PEHeader) error {
 	// 获取重定位表目录
 	relocDir := peHeader.OptionalHeader.DataDirectory[5] // IMAGE_DIRECTORY_ENTRY_BASERELOC = 5

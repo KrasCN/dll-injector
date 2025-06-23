@@ -9,32 +9,32 @@ import (
 	"github.com/shirou/gopsutil/v3/process"
 )
 
-// ProcessEntry 表示一个进程条目
+// ProcessEntry represents a process entry
 type ProcessEntry struct {
 	PID        int32
 	Name       string
 	Executable string
 }
 
-// Info 管理进程信息
+// Info manages process information
 type Info struct {
 	processes  []ProcessEntry
 	mu         sync.RWMutex
 	lastUpdate time.Time
 }
 
-// NewInfo 创建一个新的进程信息管理器
+// NewInfo creates a new process information manager
 func NewInfo() *Info {
 	info := &Info{}
-	info.Refresh() // 初始加载进程列表
+	info.Refresh() // Initial loading of process list
 	return info
 }
 
-// Refresh 刷新进程列表
+// Refresh refreshes the process list
 func (i *Info) Refresh() error {
 	processes, err := process.Processes()
 	if err != nil {
-		return fmt.Errorf("获取进程列表失败: %v", err)
+		return fmt.Errorf("Failed to get process list: %v", err)
 	}
 
 	var entries []ProcessEntry
@@ -42,13 +42,13 @@ func (i *Info) Refresh() error {
 	for _, p := range processes {
 		name, err := p.Name()
 		if err != nil {
-			// 如果无法获取名称，就跳过这个进程
+			// If unable to get name, skip this process
 			continue
 		}
 
 		exe, err := p.Exe()
 		if err != nil {
-			// 如果无法获取可执行文件路径，只使用名称
+			// If unable to get executable path, use name only
 			exe = ""
 		}
 
@@ -59,7 +59,7 @@ func (i *Info) Refresh() error {
 		})
 	}
 
-	// 按名称排序进程
+	// Sort processes by name
 	sort.Slice(entries, func(i, j int) bool {
 		return entries[i].Name < entries[j].Name
 	})
@@ -77,14 +77,14 @@ func (i *Info) GetProcesses() []ProcessEntry {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 
-	// 返回进程列表的副本，以防在调用函数中修改
+	// Return a copy of the process list to prevent modification in calling function
 	result := make([]ProcessEntry, len(i.processes))
 	copy(result, i.processes)
 
 	return result
 }
 
-// GetProcessByName 根据进程名获取进程信息
+// GetProcessByName gets process information by process name
 func (i *Info) GetProcessByName(name string) ([]ProcessEntry, bool) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
@@ -100,7 +100,7 @@ func (i *Info) GetProcessByName(name string) ([]ProcessEntry, bool) {
 	return result, len(result) > 0
 }
 
-// LastUpdateTime 返回最后更新时间
+// LastUpdateTime returns the last update time
 func (i *Info) LastUpdateTime() time.Time {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
