@@ -29,7 +29,7 @@ jobs:
         go-version: ${{ env.GO_VERSION }}
 
     - name: Cache Go modules
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
           ~/.cache/go-build
@@ -59,7 +59,7 @@ jobs:
         go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o "$env:BINARY_NAME.exe" ./cmd/dll-injector
         
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: dll-injector-${{ matrix.goos }}-${{ matrix.goarch }}
         path: |
@@ -85,7 +85,7 @@ jobs:
         args: '-no-fail -fmt sarif -out gosec.sarif ./...'
 
     - name: Upload SARIF file
-      uses: github/codeql-action/upload-sarif@v2
+      uses: github/codeql-action/upload-sarif@v3
       with:
         sarif_file: gosec.sarif
 
@@ -107,7 +107,7 @@ jobs:
         go-version: ${{ env.GO_VERSION }}
 
     - name: Download all artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
 
     - name: Build release binaries
       run: |
@@ -145,7 +145,7 @@ jobs:
         echo "EOF" >> $env:GITHUB_OUTPUT
 
     - name: Create Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ github.ref_name }}
         name: Release ${{ github.ref_name }}
