@@ -1,3 +1,6 @@
+//go:build gui
+// +build gui
+
 package main
 
 import (
@@ -5,8 +8,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// Run starts the injector application
-func Run() {
+func main() {
 	// Create UI app first so we can use its logger
 	app := ui.NewApplication("DLL Injector", 1035, 700)
 
@@ -20,8 +22,4 @@ func Run() {
 	}
 
 	// Closing message is already logged in app.Close()
-}
-
-func main() {
-	Run()
 }
