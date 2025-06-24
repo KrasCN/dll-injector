@@ -124,11 +124,16 @@ func ManualMapDLL(processID uint32, dllBytes []byte, options BypassOptions) erro
 		// 使用几个不同的高地址尝试
 		fmt.Printf("Attempting to allocate invisible memory in high address space...\n")
 
-		// 检查系统架构，64位系统使用更高的地址
+		// 获取适合当前架构的高地址
 		var highAddresses []uintptr
 		if unsafe.Sizeof(uintptr(0)) == 8 {
-			// 64位系统
-			highAddresses = []uintptr{0x7FFF0000000, 0x7FFE0000000, 0x7FFD0000000, 0x70000000}
+			// 64位系统 - 使用计算方式避免编译时常量溢出
+			highAddresses = []uintptr{
+				uintptr(0x7FFF) << 28, // 0x7FFF0000000
+				uintptr(0x7FFE) << 28, // 0x7FFE0000000
+				uintptr(0x7FFD) << 28, // 0x7FFD0000000
+				0x70000000,
+			}
 		} else {
 			// 32位系统
 			highAddresses = []uintptr{0x70000000, 0x60000000, 0x50000000, 0x40000000}

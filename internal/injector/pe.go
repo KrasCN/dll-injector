@@ -330,7 +330,8 @@ func FixImports(hProcess windows.Handle, baseAddress uintptr, peHeader *PEHeader
 			var procAddr uintptr
 			var isOrdinal bool
 			if ptrSize == 8 {
-				isOrdinal = (thunkData & 0x8000000000000000) != 0
+				// 64位系统 - 使用位移避免编译时常量溢出
+				isOrdinal = (thunkData & (uint64(1) << 63)) != 0
 			} else {
 				isOrdinal = (thunkData & 0x80000000) != 0
 			}
@@ -351,7 +352,8 @@ func FixImports(hProcess windows.Handle, baseAddress uintptr, peHeader *PEHeader
 				// 读取导入函数名称
 				var nameRVA uint64
 				if ptrSize == 8 {
-					nameRVA = thunkData & 0x7FFFFFFFFFFFFFFF
+					// 64位系统 - 使用位移避免编译时常量溢出
+					nameRVA = thunkData & ((uint64(1) << 63) - 1)
 				} else {
 					nameRVA = thunkData & 0x7FFFFFFF
 				}
