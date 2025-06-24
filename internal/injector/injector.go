@@ -848,7 +848,15 @@ func (i *Injector) manualMapDLL(dllBytes []byte) error {
 	i.logger.Info("Using manual mapping method",
 		"process_id", i.processID,
 		"invisible_memory", i.bypassOptions.InvisibleMemory)
-	err := ManualMapDLL(i.processID, dllBytes, i.bypassOptions.InvisibleMemory)
+
+	// 创建bypass选项
+	options := BypassOptions{
+		InvisibleMemory: i.bypassOptions.InvisibleMemory,
+		ErasePEHeader:   i.bypassOptions.ErasePEHeader,
+		EraseEntryPoint: i.bypassOptions.EraseEntryPoint,
+	}
+
+	err := ManualMapDLL(i.processID, dllBytes, options)
 	if err != nil {
 		i.logger.Error("Manual mapping injection failed", "error", err)
 		errMsg := "Manual mapping DLL failed: " + err.Error()
@@ -1237,7 +1245,13 @@ func (i *Injector) createInMemoryHookDll() ([]byte, error) {
 func (i *Injector) injectHookDllToProcess(dllBytes []byte) error {
 	// 使用手动映射将DLL注入到目标进程
 	if i.bypassOptions.ManualMapping {
-		return ManualMapDLL(i.processID, dllBytes, i.bypassOptions.InvisibleMemory)
+		// 创建bypass选项
+		options := BypassOptions{
+			InvisibleMemory: i.bypassOptions.InvisibleMemory,
+			ErasePEHeader:   i.bypassOptions.ErasePEHeader,
+			EraseEntryPoint: i.bypassOptions.EraseEntryPoint,
+		}
+		return ManualMapDLL(i.processID, dllBytes, options)
 	}
 
 	// 使用标准注入方法
@@ -3041,7 +3055,13 @@ func (i *Injector) performInjectionWhileFrozen(hProcess windows.Handle, dllPath 
 
 		// 手动映射
 		if i.bypassOptions.ManualMapping {
-			if err := ManualMapDLL(i.processID, dllBytes, i.bypassOptions.InvisibleMemory); err != nil {
+			// 创建bypass选项
+			options := BypassOptions{
+				InvisibleMemory: i.bypassOptions.InvisibleMemory,
+				ErasePEHeader:   i.bypassOptions.ErasePEHeader,
+				EraseEntryPoint: i.bypassOptions.EraseEntryPoint,
+			}
+			if err := ManualMapDLL(i.processID, dllBytes, options); err != nil {
 				return errors.New("Manual mapping DLL failed: " + err.Error())
 			}
 		} else {

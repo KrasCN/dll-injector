@@ -80,7 +80,7 @@ func EraseEntryPoint(processHandle windows.Handle, baseAddress uintptr) error {
 }
 
 // ManualMapDLL loads DLL using manual mapping method
-func ManualMapDLL(processID uint32, dllBytes []byte, useInvisibleMemory bool) error {
+func ManualMapDLL(processID uint32, dllBytes []byte, options BypassOptions) error {
 	// 检查参数
 	if processID == 0 {
 		return fmt.Errorf("Process ID cannot be zero")
@@ -91,7 +91,7 @@ func ManualMapDLL(processID uint32, dllBytes []byte, useInvisibleMemory bool) er
 	}
 
 	fmt.Printf("Starting manual mapping of DLL to process ID: %d, DLL size: %d bytes, using invisible memory: %v\n",
-		processID, len(dllBytes), useInvisibleMemory)
+		processID, len(dllBytes), options.InvisibleMemory)
 
 	// 打开目标进程
 	hProcess, err := windows.OpenProcess(windows.PROCESS_CREATE_THREAD|windows.PROCESS_VM_OPERATION|
@@ -119,7 +119,7 @@ func ManualMapDLL(processID uint32, dllBytes []byte, useInvisibleMemory bool) er
 	var baseAddress uintptr
 	var memAllocErr error
 
-	if useInvisibleMemory {
+	if options.InvisibleMemory {
 		// 尝试在高地址空间分配内存，如果失败则尝试让系统自动选择地址
 		// 使用几个不同的高地址尝试
 		fmt.Printf("Attempting to allocate invisible memory in high address space...\n")
@@ -210,6 +210,29 @@ func ManualMapDLL(processID uint32, dllBytes []byte, useInvisibleMemory bool) er
 		return fmt.Errorf("Failed to execute DLL entry point: %v", err)
 	}
 	fmt.Printf("Successfully executed DLL entry point\n")
+
+	// 应用反检测技术
+	if options.ErasePEHeader {
+		fmt.Printf("Erasing PE header for stealth...\n")
+		err = ErasePEHeader(hProcess, baseAddress)
+		if err != nil {
+			fmt.Printf("Warning: Failed to erase PE header: %v\n", err)
+			// 不返回错误，因为这不是关键操作
+		} else {
+			fmt.Printf("Successfully erased PE header\n")
+		}
+	}
+
+	if options.EraseEntryPoint {
+		fmt.Printf("Erasing entry point for stealth...\n")
+		err = EraseEntryPoint(hProcess, baseAddress)
+		if err != nil {
+			fmt.Printf("Warning: Failed to erase entry point: %v\n", err)
+			// 不返回错误，因为这不是关键操作
+		} else {
+			fmt.Printf("Successfully erased entry point\n")
+		}
+	}
 
 	fmt.Printf("Manual mapping of DLL completed, base address: 0x%X\n", baseAddress)
 	return nil
