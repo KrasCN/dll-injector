@@ -1,6 +1,3 @@
-//go:build gui
-// +build gui
-
 package main
 
 import (
