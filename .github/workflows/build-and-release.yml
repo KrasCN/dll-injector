@@ -16,78 +16,31 @@ jobs:
     runs-on: windows-latest
     strategy:
       matrix:
-        goos: [windows]
         goarch: [amd64, 386]
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Go
-      uses: actions/setup-go@v4
+    - uses: actions/checkout@v4
+    - uses: actions/setup-go@v4
       with:
         go-version: ${{ env.GO_VERSION }}
 
-    - name: Cache Go modules
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cache/go-build
-          ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-
-
-    - name: Download dependencies
-      run: go mod download
-
-    - name: Run tests
-      run: go test -v ./...
-
-    - name: Build binary
+    - name: Build ${{ matrix.goarch }}
       env:
-        GOOS: ${{ matrix.goos }}
+        GOOS: windows
         GOARCH: ${{ matrix.goarch }}
         CGO_ENABLED: 0
       run: |
-        $env:BINARY_NAME = "dll-injector"
-        if ($env:GOARCH -eq "386") {
-          $env:BINARY_NAME = "dll-injector-x86"
+        if ("${{ matrix.goarch }}" -eq "386") {
+          go build -o dll-injector-x86.exe ./cmd/injector
         } else {
-          $env:BINARY_NAME = "dll-injector-x64"
+          go build -o dll-injector-x64.exe ./cmd/injector
         }
-        go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o "$env:BINARY_NAME.exe" ./cmd/injector
-        
-    - name: Upload build artifacts
+
+    - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: dll-injector-${{ matrix.goos }}-${{ matrix.goarch }}
-        path: |
-          dll-injector*.exe
-        retention-days: 30
-
-  security:
-    name: Security Scan
-    runs-on: windows-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: ${{ env.GO_VERSION }}
-
-    - name: Run Gosec Security Scanner
-      uses: securecodewarrior/github-action-gosec@master
-      with:
-        args: '-no-fail -fmt sarif -out gosec.sarif ./...'
-
-    - name: Upload SARIF file
-      uses: github/codeql-action/upload-sarif@v3
-      with:
-        sarif_file: gosec.sarif
+        name: dll-injector-${{ matrix.goarch }}
+        path: dll-injector*.exe
 
   release:
     name: Create Release
@@ -96,93 +49,32 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Set up Go
-      uses: actions/setup-go@v4
+    - uses: actions/checkout@v4
+    - uses: actions/setup-go@v4
       with:
         go-version: ${{ env.GO_VERSION }}
 
-    - name: Download all artifacts
+    - name: Download artifacts
       uses: actions/download-artifact@v4
 
     - name: Build release binaries
+      env:
+        GOOS: windows
+        CGO_ENABLED: 0
       run: |
-        # Build x64 version
-        $env:GOOS = "windows"
+        # Build x64
         $env:GOARCH = "amd64"
-        $env:CGO_ENABLED = "0"
-        go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o "dll-injector-x64.exe" ./cmd/dll-injector
+        go build -o dll-injector-x64.exe ./cmd/injector
         
-        # Build x86 version
+        # Build x86
         $env:GOARCH = "386"
-        go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o "dll-injector-x86.exe" ./cmd/dll-injector
+        go build -o dll-injector-x86.exe ./cmd/injector
 
-    - name: Create ZIP archives
-      run: |
-        # Create x64 archive
-        Compress-Archive -Path "dll-injector-x64.exe", "README.md", "LICENSE" -DestinationPath "dll-injector-windows-x64.zip"
-        
-        # Create x86 archive
-        Compress-Archive -Path "dll-injector-x86.exe", "README.md", "LICENSE" -DestinationPath "dll-injector-windows-x86.zip"
-
-    - name: Generate changelog
-      id: changelog
-      run: |
-        $tag = "${{ github.ref_name }}"
-        $previousTag = git describe --tags --abbrev=0 HEAD~1 2>$null
-        if ($previousTag) {
-          $changelog = git log --pretty=format:"- %s (%h)" "$previousTag..$tag"
-        } else {
-          $changelog = git log --pretty=format:"- %s (%h)" $tag
-        }
-        $changelog = $changelog -join "`n"
-        echo "CHANGELOG<<EOF" >> $env:GITHUB_OUTPUT
-        echo $changelog >> $env:GITHUB_OUTPUT
-        echo "EOF" >> $env:GITHUB_OUTPUT
-
-    - name: Create Release
+    - name: Create release
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: ${{ github.ref_name }}
-        name: Release ${{ github.ref_name }}
-        body: |
-          ## Changes in ${{ github.ref_name }}
-          
-          ${{ steps.changelog.outputs.CHANGELOG }}
-          
-          ## Download
-          
-          - **Windows x64**: `dll-injector-windows-x64.zip`
-          - **Windows x86**: `dll-injector-windows-x86.zip`
-          
-          ## Usage
-          
-          ```bash
-          # Basic injection
-          dll-injector.exe -dll path/to/your.dll -process target.exe
-          
-          # Advanced injection with specific method
-          dll-injector.exe -dll path/to/your.dll -pid 1234 -method standard
-          ```
-          
-          ## Security Notice
-          
-          This tool is intended for legitimate security research and educational purposes only. 
-          Please ensure you have proper authorization before using this tool.
         files: |
-          dll-injector-windows-x64.zip
-          dll-injector-windows-x86.zip
-        draft: false
-        prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
-        generate_release_notes: true
+          dll-injector-x64.exe
+          dll-injector-x86.exe
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Update latest release
-      if: "!contains(github.ref_name, 'alpha') && !contains(github.ref_name, 'beta') && !contains(github.ref_name, 'rc')"
-      run: |
-        echo "This is a stable release: ${{ github.ref_name }}"

@@ -328,13 +328,7 @@ func FixImports(hProcess windows.Handle, baseAddress uintptr, peHeader *PEHeader
 
 			// 判断是按名称导入还是按序号导入
 			var procAddr uintptr
-			var isOrdinal bool
-
-			if ptrSize == 8 {
-				isOrdinal = (thunkData & 0x8000000000000000) != 0
-			} else {
-				isOrdinal = (thunkData & 0x80000000) != 0
-			}
+			isOrdinal := (thunkData & getOrdinalMask()) != 0
 
 			if isOrdinal {
 				// 按序号导入
