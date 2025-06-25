@@ -127,11 +127,17 @@ func ManualMapDLL(processID uint32, dllBytes []byte, options BypassOptions) erro
 		// 获取适合当前架构的高地址
 		var highAddresses []uintptr
 		if unsafe.Sizeof(uintptr(0)) == 8 {
-			// 64位系统 - 使用计算方式避免编译时常量溢出
+			// 64位系统 - 使用运行时计算避免编译时常量溢出
+			// 将计算分解为多个步骤，确保编译器无法在编译时预计算
+			shift := uint(28)
+			base1 := uint64(0x7FFF)
+			base2 := uint64(0x7FFE)
+			base3 := uint64(0x7FFD)
+
 			highAddresses = []uintptr{
-				uintptr(0x7FFF) << 28, // 0x7FFF0000000
-				uintptr(0x7FFE) << 28, // 0x7FFE0000000
-				uintptr(0x7FFD) << 28, // 0x7FFD0000000
+				uintptr(base1 << shift), // 0x7FFF0000000
+				uintptr(base2 << shift), // 0x7FFE0000000
+				uintptr(base3 << shift), // 0x7FFD0000000
 				0x70000000,
 			}
 		} else {
