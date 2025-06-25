@@ -68,11 +68,13 @@ type BypassOptions struct {
 
 // Injector handles DLL injection
 type Injector struct {
-	dllPath       string
-	processID     uint32
-	method        InjectionMethod
-	bypassOptions BypassOptions
-	logger        Logger // Logger for all operations
+	dllPath            string
+	processID          uint32
+	method             InjectionMethod
+	bypassOptions      BypassOptions
+	enhancedOptions    EnhancedBypassOptions
+	useEnhancedOptions bool
+	logger             Logger // Logger for all operations
 }
 
 // Windows API function calls
@@ -725,95 +727,7 @@ func (i *Injector) diskLoadDLL() error {
 	return nil
 }
 
-// memoryLoadDLL loads DLL from memory and injects
-func (i *Injector) memoryLoadDLL(dllBytes []byte) error {
-	// 创建临时DLL文件
-	tempPath := i.createTempDllFile(dllBytes)
-	defer os.Remove(tempPath)
-
-	// 打开目标进程
-	hProcess, err := windows.OpenProcess(windows.PROCESS_CREATE_THREAD|windows.PROCESS_VM_OPERATION|
-		windows.PROCESS_VM_WRITE|windows.PROCESS_VM_READ|windows.PROCESS_QUERY_INFORMATION,
-		false, i.processID)
-	if err != nil {
-		errMsg := "无法打开目标进程: " + err.Error()
-		newErr := errors.New(errMsg)
-		i.logger.Error("Memory load failed", "error", newErr)
-		return newErr
-	}
-	defer windows.CloseHandle(hProcess)
-
-	// 解析PE头
-	peHeader, err := ParsePEHeader(dllBytes)
-	if err != nil {
-		errMsg := "解析PE头失败: " + err.Error()
-		newErr := errors.New(errMsg)
-		i.logger.Error("Memory load failed", "error", newErr)
-		return newErr
-	}
-
-	// 计算需要分配的内存大小
-	imageSize := peHeader.OptionalHeader.SizeOfImage
-
-	// 分配内存基址
-	baseAddress, err := VirtualAllocEx(hProcess, 0, uintptr(imageSize),
-		windows.MEM_RESERVE|windows.MEM_COMMIT, windows.PAGE_EXECUTE_READWRITE)
-	if err != nil {
-		errMsg := "在目标进程中分配内存失败: " + err.Error()
-		newErr := errors.New(errMsg)
-		i.logger.Error("Memory load failed", "error", newErr)
-		return newErr
-	}
-
-	// 映射PE文件各节到远程进程内存
-	err = MapSections(hProcess, dllBytes, baseAddress, peHeader)
-	if err != nil {
-		errMsg := "映射PE节失败: " + err.Error()
-		newErr := errors.New(errMsg)
-		i.logger.Error("Memory load failed", "error", newErr)
-		return newErr
-	}
-
-	// 修复导入表
-	err = FixImports(hProcess, baseAddress, peHeader)
-	if err != nil {
-		errMsg := "修复导入表失败: " + err.Error()
-		newErr := errors.New(errMsg)
-		i.logger.Error("Memory load failed", "error", newErr)
-		return newErr
-	}
-
-	// 修复重定位
-	err = FixRelocations(hProcess, baseAddress, peHeader)
-	if err != nil {
-		errMsg := "修复重定位失败: " + err.Error()
-		newErr := errors.New(errMsg)
-		i.logger.Error("Memory load failed", "error", newErr)
-		return newErr
-	}
-
-	// 应用反检测选项
-	if i.bypassOptions.ErasePEHeader {
-		ErasePEHeader(hProcess, baseAddress)
-	}
-
-	if i.bypassOptions.EraseEntryPoint {
-		EraseEntryPoint(hProcess, baseAddress)
-	}
-
-	// 执行DLL入口点（如果没有擦除入口点）
-	if !i.bypassOptions.EraseEntryPoint {
-		err = i.executeDllEntry(hProcess, baseAddress, peHeader)
-		if err != nil {
-			errMsg := "执行DLL入口点失败: " + err.Error()
-			newErr := errors.New(errMsg)
-			i.logger.Error("Memory load failed", "error", newErr)
-			return newErr
-		}
-	}
-
-	return nil
-}
+// Note: memoryLoadDLL method is defined in memory_load.go
 
 // createTempDllFile 创建临时DLL文件
 func (i *Injector) createTempDllFile(dllBytes []byte) string {
@@ -903,29 +817,7 @@ func (i *Injector) spoofDllPath() string {
 	return tempFile.Name()
 }
 
-// diskLoadDLLWithSpoofing 使用伪装路径从磁盘加载DLL
-func (i *Injector) diskLoadDLLWithSpoofing() error {
-	// 创建伪装的DLL路径
-	spoofedPath := i.spoofDllPath()
-	defer func() {
-		// 如果是临时文件，注入完成后删除
-		if spoofedPath != i.dllPath {
-			os.Remove(spoofedPath)
-		}
-	}()
-
-	// 临时将dllPath改为spoofedPath
-	originalPath := i.dllPath
-	i.dllPath = spoofedPath
-
-	// 使用磁盘加载方法
-	err := i.diskLoadDLL()
-
-	// 恢复原始dllPath
-	i.dllPath = originalPath
-
-	return err
-}
+// Note: diskLoadDLLWithSpoofing method is defined in disk_load.go
 
 // hookInject 使用SetWindowsHookEx进行注入
 func (i *Injector) hookInject() error {

@@ -245,6 +245,16 @@ func ManualMapDLL(processID uint32, dllBytes []byte, options BypassOptions) erro
 		}
 	}
 
+	// 应用高级反检测技术
+	Printf("Applying advanced bypass options...\n")
+	err = ApplyAdvancedBypassOptions(hProcess, baseAddress, uintptr(imageSize), options)
+	if err != nil {
+		Printf("Warning: Failed to apply advanced bypass options: %v\n", err)
+		// 不返回错误，因为这不是关键操作
+	} else {
+		Printf("Successfully applied advanced bypass options\n")
+	}
+
 	Printf("Manual mapping of DLL completed, base address: 0x%X\n", baseAddress)
 	return nil
 }

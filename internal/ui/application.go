@@ -334,6 +334,23 @@ type Application struct {
 	allocBehindThreadStack bool
 	directSyscalls         bool
 
+	// 增强的高级选项
+	randomizeAllocation  bool
+	delayedExecution     bool
+	multiStageInjection  bool
+	antiDebugTechniques  bool
+	processHollowing     bool
+	atomBombing          bool
+	doppelgangingProcess bool
+	ghostWriting         bool
+	moduleStomping       bool
+	threadHijacking      bool
+	apcQueueing          bool
+	memoryFluctuation    bool
+	antiVMTechniques     bool
+	processMirroring     bool
+	stealthyThreads      bool
+
 	// 注入方法选择
 	injectionMethod int    // 0: 标准注入, 1: SetWindowsHookEx, 2: QueueUserAPC, 3: Early Bird APC, 4: DLL通知, 5: 冷冻进程
 	selectedMethod  string // 存储当前选中的注入方法名称
@@ -349,7 +366,7 @@ func NewApplication(title string, width, height int) *Application {
 		fyneApp:          fyneapp.New(),
 		title:            title,
 		width:            float32(width),
-		height:           float32(height + 100),
+		height:           float32(height + 250),
 		processInfo:      process.NewInfo(),
 		selectedPID:      -1,
 		selectedDll:      binding.NewString(),
@@ -784,10 +801,140 @@ func (app *Application) createLeftPanel() fyne.CanvasObject {
 		app.bypassCheckboxes["Use Legitimate Process"],
 	)
 
+	// Enhanced advanced options title
+	enhancedTitle := widget.NewLabelWithStyle("Enhanced Options", fyne.TextAlignLeading, fyne.TextStyle{Bold: true, Italic: true})
+
+	// Memory options
+	app.bypassCheckboxes["Randomize Allocation"] = widget.NewCheck("Randomize Allocation", func(checked bool) {
+		app.randomizeAllocation = checked
+		app.logger.Info("Enhanced option changed", zap.String("option", "Randomize Allocation"), zap.Bool("enabled", checked))
+	})
+
+	app.bypassCheckboxes["Memory Fluctuation"] = widget.NewCheck("Memory Fluctuation", func(checked bool) {
+		app.memoryFluctuation = checked
+		app.logger.Info("Enhanced option changed", zap.String("option", "Memory Fluctuation"), zap.Bool("enabled", checked))
+	})
+
+	app.bypassCheckboxes["Multi-Stage Injection"] = widget.NewCheck("Multi-Stage Injection", func(checked bool) {
+		app.multiStageInjection = checked
+		app.logger.Info("Enhanced option changed", zap.String("option", "Multi-Stage Injection"), zap.Bool("enabled", checked))
+	})
+
+	// First row of enhanced memory options
+	enhancedMemoryOptions := container.NewGridWithColumns(3,
+		app.bypassCheckboxes["Randomize Allocation"],
+		app.bypassCheckboxes["Memory Fluctuation"],
+		app.bypassCheckboxes["Multi-Stage Injection"],
+	)
+
+	// Thread options
+	app.bypassCheckboxes["Thread Hijacking"] = widget.NewCheck("Thread Hijacking", func(checked bool) {
+		app.threadHijacking = checked
+		app.logger.Info("Enhanced option changed", zap.String("option", "Thread Hijacking"), zap.Bool("enabled", checked))
+
+		// Thread hijacking and stealthy threads are mutually exclusive
+		if checked && app.stealthyThreads {
+			app.stealthyThreads = false
+			app.bypassCheckboxes["Stealthy Threads"].SetChecked(false)
+		}
+	})
+
+	app.bypassCheckboxes["APC Queueing"] = widget.NewCheck("APC Queueing", func(checked bool) {
+		app.apcQueueing = checked
+		app.logger.Info("Enhanced option changed", zap.String("option", "APC Queueing"), zap.Bool("enabled", checked))
+	})
+
+	app.bypassCheckboxes["Stealthy Threads"] = widget.NewCheck("Stealthy Threads", func(checked bool) {
+		app.stealthyThreads = checked
+		app.logger.Info("Enhanced option changed", zap.String("option", "Stealthy Threads"), zap.Bool("enabled", checked))
+
+		// Thread hijacking and stealthy threads are mutually exclusive
+		if checked && app.threadHijacking {
+			app.threadHijacking = false
+			app.bypassCheckboxes["Thread Hijacking"].SetChecked(false)
+		}
+	})
+
+	// Thread options row
+	enhancedThreadOptions := container.NewGridWithColumns(3,
+		app.bypassCheckboxes["Thread Hijacking"],
+		app.bypassCheckboxes["APC Queueing"],
+		app.bypassCheckboxes["Stealthy Threads"],
+	)
+
+	// Process options
+	app.bypassCheckboxes["Process Hollowing"] = widget.NewCheck("Process Hollowing", func(checked bool) {
+		app.processHollowing = checked
+		app.logger.Info("Enhanced option changed", zap.String("option", "Process Hollowing"), zap.Bool("enabled", checked))
+
+		// Process hollowing and doppelganging are mutually exclusive
+		if checked && app.doppelgangingProcess {
+			app.doppelgangingProcess = false
+			app.bypassCheckboxes["Process Doppelganging"].SetChecked(false)
+		}
+	})
+
+	app.bypassCheckboxes["Process Doppelganging"] = widget.NewCheck("Process Doppelganging", func(checked bool) {
+		app.doppelgangingProcess = checked
+		app.logger.Info("Enhanced option changed", zap.String("option", "Process Doppelganging"), zap.Bool("enabled", checked))
+
+		// Process hollowing and doppelganging are mutually exclusive
+		if checked && app.processHollowing {
+			app.processHollowing = false
+			app.bypassCheckboxes["Process Hollowing"].SetChecked(false)
+		}
+	})
+
+	app.bypassCheckboxes["Process Mirroring"] = widget.NewCheck("Process Mirroring", func(checked bool) {
+		app.processMirroring = checked
+		app.logger.Info("Enhanced option changed", zap.String("option", "Process Mirroring"), zap.Bool("enabled", checked))
+	})
+
+	// Process options row
+	enhancedProcessOptions := container.NewGridWithColumns(3,
+		app.bypassCheckboxes["Process Hollowing"],
+		app.bypassCheckboxes["Process Doppelganging"],
+		app.bypassCheckboxes["Process Mirroring"],
+	)
+
+	// Anti-detection options
+	app.bypassCheckboxes["Anti-Debug Techniques"] = widget.NewCheck("Anti-Debug Techniques", func(checked bool) {
+		app.antiDebugTechniques = checked
+		app.logger.Info("Enhanced option changed", zap.String("option", "Anti-Debug Techniques"), zap.Bool("enabled", checked))
+	})
+
+	app.bypassCheckboxes["Anti-VM Techniques"] = widget.NewCheck("Anti-VM Techniques", func(checked bool) {
+		app.antiVMTechniques = checked
+		app.logger.Info("Enhanced option changed", zap.String("option", "Anti-VM Techniques"), zap.Bool("enabled", checked))
+	})
+
+	app.bypassCheckboxes["Delayed Execution"] = widget.NewCheck("Delayed Execution", func(checked bool) {
+		app.delayedExecution = checked
+		app.logger.Info("Enhanced option changed", zap.String("option", "Delayed Execution"), zap.Bool("enabled", checked))
+	})
+
+	// Anti-detection options row
+	enhancedAntiDetectionOptions := container.NewGridWithColumns(3,
+		app.bypassCheckboxes["Anti-Debug Techniques"],
+		app.bypassCheckboxes["Anti-VM Techniques"],
+		app.bypassCheckboxes["Delayed Execution"],
+	)
+
+	// Combine all enhanced options
+	enhancedCard := container.NewVBox(
+		enhancedTitle,
+		enhancedMemoryOptions,
+		enhancedThreadOptions,
+		enhancedProcessOptions,
+		enhancedAntiDetectionOptions,
+	)
+
+	// Combine all advanced options
 	advancedCard := container.NewVBox(
 		advancedTitle,
 		advancedOptions1,
 		advancedOptions2,
+		enhancedCard,
 	)
 
 	// Combine all anti-detection option cards
@@ -870,6 +1017,27 @@ func (app *Application) createLeftPanel() fyne.CanvasObject {
 			DirectSyscalls:         app.directSyscalls,
 		}
 		inj.SetBypassOptions(options)
+
+		// Set enhanced options if available
+		enhancedOptions := injector.EnhancedBypassOptions{
+			BypassOptions:        options,
+			RandomizeAllocation:  app.randomizeAllocation,
+			DelayedExecution:     app.delayedExecution,
+			MultiStageInjection:  app.multiStageInjection,
+			AntiDebugTechniques:  app.antiDebugTechniques,
+			ProcessHollowing:     app.processHollowing,
+			AtomBombing:          app.atomBombing,
+			DoppelgangingProcess: app.doppelgangingProcess,
+			GhostWriting:         app.ghostWriting,
+			ModuleStomping:       app.moduleStomping,
+			ThreadHijacking:      app.threadHijacking,
+			APCQueueing:          app.apcQueueing,
+			MemoryFluctuation:    app.memoryFluctuation,
+			AntiVMTechniques:     app.antiVMTechniques,
+			ProcessMirroring:     app.processMirroring,
+			StealthyThreads:      app.stealthyThreads,
+		}
+		inj.SetEnhancedBypassOptions(enhancedOptions)
 
 		// Execute injection operation
 		go func() {
@@ -992,6 +1160,82 @@ func (app *Application) updateBypassOptionsState() {
 			app.bypassCheckboxes["Remove VAD Node"].Enable()
 		} else {
 			app.bypassCheckboxes["Remove VAD Node"].Disable()
+		}
+	}
+
+	// Enhanced options mutual exclusivity checks
+
+	// Process hollowing and process doppelganging are mutually exclusive
+	if app.processHollowing && app.doppelgangingProcess {
+		incompatibilities = append(incompatibilities, "'Process Hollowing' is not compatible with 'Process Doppelganging'")
+
+		// Default to keeping Process Hollowing and disabling Process Doppelganging
+		app.doppelgangingProcess = false
+		app.bypassCheckboxes["Process Doppelganging"].SetChecked(false)
+	}
+
+	// Thread hijacking and stealthy threads are mutually exclusive
+	if app.threadHijacking && app.stealthyThreads {
+		incompatibilities = append(incompatibilities, "'Thread Hijacking' is not compatible with 'Stealthy Threads'")
+
+		// Default to keeping Thread Hijacking and disabling Stealthy Threads
+		app.stealthyThreads = false
+		app.bypassCheckboxes["Stealthy Threads"].SetChecked(false)
+	}
+
+	// Process hollowing requires memory loading
+	if app.processHollowing && !app.memoryLoad {
+		app.memoryLoad = true
+		app.bypassCheckboxes["Load DLL from Memory"].SetChecked(true)
+		incompatibilities = append(incompatibilities, "'Process Hollowing' requires 'Load DLL from Memory'")
+	}
+
+	// Process doppelganging requires memory loading
+	if app.doppelgangingProcess && !app.memoryLoad {
+		app.memoryLoad = true
+		app.bypassCheckboxes["Load DLL from Memory"].SetChecked(true)
+		incompatibilities = append(incompatibilities, "'Process Doppelganging' requires 'Load DLL from Memory'")
+	}
+
+	// Thread hijacking requires memory loading
+	if app.threadHijacking && !app.memoryLoad {
+		app.memoryLoad = true
+		app.bypassCheckboxes["Load DLL from Memory"].SetChecked(true)
+		incompatibilities = append(incompatibilities, "'Thread Hijacking' requires 'Load DLL from Memory'")
+	}
+
+	// Multi-stage injection requires memory loading
+	if app.multiStageInjection && !app.memoryLoad {
+		app.memoryLoad = true
+		app.bypassCheckboxes["Load DLL from Memory"].SetChecked(true)
+		incompatibilities = append(incompatibilities, "'Multi-Stage Injection' requires 'Load DLL from Memory'")
+	}
+
+	// Memory fluctuation is only applicable with memory loading
+	if app.memoryFluctuation && !app.memoryLoad {
+		app.memoryLoad = true
+		app.bypassCheckboxes["Load DLL from Memory"].SetChecked(true)
+		incompatibilities = append(incompatibilities, "'Memory Fluctuation' requires 'Load DLL from Memory'")
+	}
+
+	// APC queueing and standard injection are not compatible
+	if app.apcQueueing && app.injectionMethod == int(injector.StandardInjection) {
+		incompatibilities = append(incompatibilities, "'APC Queueing' is not compatible with 'Standard Injection'")
+		app.apcQueueing = false
+		app.bypassCheckboxes["APC Queueing"].SetChecked(false)
+	}
+
+	// Process hollowing and standard injection are not compatible
+	if app.processHollowing && app.injectionMethod != int(injector.StandardInjection) {
+		incompatibilities = append(incompatibilities, "'Process Hollowing' requires 'Standard Injection'")
+		app.injectionMethod = int(injector.StandardInjection)
+		app.selectedMethod = "Standard Injection"
+		// Update radio button in UI
+		// Find and update the radio group for injection method
+		if content := app.mainWindow.Content(); content != nil {
+			if scroll, ok := content.(*container.Scroll); ok && scroll.Content != nil {
+				app.updateRadioGroupSelection(scroll.Content, "Standard Injection")
+			}
 		}
 	}
 
@@ -1211,6 +1455,20 @@ func (app *Application) ensureScrollToBottom() {
 	// Scroll to the bottom
 	app.scrollContainer.Offset = fyne.NewPos(0, maxScroll)
 	app.scrollContainer.Refresh()
+}
+
+// updateRadioGroupSelection recursively searches for and updates radio group selection
+func (app *Application) updateRadioGroupSelection(obj fyne.CanvasObject, selection string) {
+	if radio, ok := obj.(*widget.RadioGroup); ok {
+		radio.SetSelected(selection)
+		return
+	}
+
+	if container, ok := obj.(*fyne.Container); ok {
+		for _, child := range container.Objects {
+			app.updateRadioGroupSelection(child, selection)
+		}
+	}
 }
 
 // Close 关闭应用程序
