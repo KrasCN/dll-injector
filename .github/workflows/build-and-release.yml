@@ -11,12 +11,9 @@ env:
   GO_VERSION: '1.21'
 
 jobs:
-  build:
-    name: Build
+  build-amd64:
+    name: Build AMD64
     runs-on: windows-latest
-    strategy:
-      matrix:
-        goarch: [amd64, 386]
     
     steps:
     - uses: actions/checkout@v4
@@ -24,28 +21,58 @@ jobs:
       with:
         go-version: ${{ env.GO_VERSION }}
 
-    - name: Build ${{ matrix.goarch }}
+    - name: Build AMD64
       env:
         GOOS: windows
-        GOARCH: ${{ matrix.goarch }}
+        GOARCH: amd64
         CGO_ENABLED: 1
-      run: |
-        if ("${{ matrix.goarch }}" -eq "386") {
-          go build -o dll-injector-x86.exe ./cmd/injector
-        } else {
-          go build -o dll-injector-x64.exe ./cmd/injector
-        }
+      run: go build -o dll-injector-x64.exe ./cmd/injector
 
-    - name: Upload artifacts
+    - name: Upload AMD64 artifact
       uses: actions/upload-artifact@v4
       with:
-        name: dll-injector-${{ matrix.goarch }}
-        path: dll-injector*.exe
+        name: dll-injector-amd64
+        path: dll-injector-x64.exe
+
+  build-386:
+    name: Build 386
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Setup 32-bit build environment
+      run: |
+        # Install MSYS2 which includes proper 32-bit MinGW support
+        choco install msys2 -y
+        # Install 32-bit toolchain
+        C:\tools\msys64\usr\bin\bash.exe -lc "pacman -Sy --noconfirm"
+        C:\tools\msys64\usr\bin\bash.exe -lc "pacman -S --noconfirm mingw-w64-i686-toolchain"
+        # Add 32-bit MinGW to PATH
+        echo "C:\tools\msys64\mingw32\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+    - name: Build 386
+      env:
+        GOOS: windows
+        GOARCH: 386
+        CGO_ENABLED: 1
+        CC: C:\tools\msys64\mingw32\bin\gcc.exe
+        CXX: C:\tools\msys64\mingw32\bin\g++.exe
+      run: go build -o dll-injector-x86.exe ./cmd/injector
+
+    - name: Upload 386 artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: dll-injector-386
+        path: dll-injector-x86.exe
 
   release:
     name: Create Release
     runs-on: windows-latest
-    needs: [build]
+    needs: [build-amd64, build-386]
     if: startsWith(github.ref, 'refs/tags/v')
     
     steps:
@@ -56,19 +83,14 @@ jobs:
 
     - name: Download artifacts
       uses: actions/download-artifact@v4
+      with:
+        path: artifacts
 
-    - name: Build release binaries
-      env:
-        GOOS: windows
-        CGO_ENABLED: 1
+    - name: Prepare release files
       run: |
-        # Build x64
-        $env:GOARCH = "amd64"
-        go build -o dll-injector-x64.exe ./cmd/injector
-        
-        # Build x86
-        $env:GOARCH = "386"
-        go build -o dll-injector-x86.exe ./cmd/injector
+        # Copy artifacts to root directory for release
+        Copy-Item "artifacts\dll-injector-amd64\dll-injector-x64.exe" -Destination "dll-injector-x64.exe"
+        Copy-Item "artifacts\dll-injector-386\dll-injector-x86.exe" -Destination "dll-injector-x86.exe"
 
     - name: Create release
       uses: softprops/action-gh-release@v2
