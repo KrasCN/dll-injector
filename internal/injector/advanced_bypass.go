@@ -70,12 +70,15 @@ var (
 func PTESpoofing(hProcess windows.Handle, baseAddress uintptr, size uintptr) error {
 	Printf("Starting PTE spoofing for address 0x%X, size: %d bytes\n", baseAddress, size)
 
-	// Step 1: Allocate memory with RW permissions
+	// Note: True PTE spoofing requires kernel-level access or driver support
+	// This implementation provides a user-mode approximation using advanced memory techniques
+
+	// Step 1: Allocate memory with RW permissions first
 	var allocatedAddr uintptr = baseAddress
 	var allocatedSize uintptr = size
 	var oldProtect uint32
 
-	// Use NtAllocateVirtualMemory for more control
+	// Use NtAllocateVirtualMemory for more control over allocation
 	status, _, _ := procNtAllocateVirtualMemory.Call(
 		uintptr(hProcess),
 		uintptr(unsafe.Pointer(&allocatedAddr)),
@@ -138,6 +141,9 @@ func PTESpoofing(hProcess windows.Handle, baseAddress uintptr, size uintptr) err
 func VADManipulation(hProcess windows.Handle, baseAddress uintptr, size uintptr) error {
 	Printf("Starting VAD manipulation for address 0x%X, size: %d bytes\n", baseAddress, size)
 
+	// Note: True VAD manipulation requires kernel-level access or driver support
+	// This implementation provides user-mode techniques to influence VAD characteristics
+
 	// Query the current VAD information
 	var mbi MemoryBasicInformation
 	var returnLength uintptr
@@ -159,8 +165,8 @@ func VADManipulation(hProcess windows.Handle, baseAddress uintptr, size uintptr)
 	Printf("Current VAD info - Base: 0x%X, Size: %d, Protect: 0x%X, Type: 0x%X\n",
 		mbi.BaseAddress, mbi.RegionSize, mbi.Protect, mbi.Type)
 
-	// Attempt to modify VAD characteristics
-	// Note: This is a simplified implementation. Real VAD manipulation would require
+	// Attempt to modify VAD characteristics using available user-mode techniques
+	// Note: This is a user-mode approximation. Real VAD manipulation would require
 	// kernel-level access or exploitation of kernel vulnerabilities.
 
 	// Try to allocate memory with specific characteristics that might bypass detection
@@ -311,13 +317,20 @@ func DirectSyscalls(hProcess windows.Handle, baseAddress uintptr, buffer []byte)
 
 	// This is a simplified implementation of direct syscalls
 	// In a real implementation, we would:
-	// 1. Extract syscall numbers from ntdll.dll
+	// 1. Extract syscall numbers from ntdll.dll at runtime
 	// 2. Craft assembly code to make direct syscalls
-	// 3. Bypass any API hooks in user-mode
+	// 3. Bypass any API hooks in user-mode DLLs
+	// 4. Use techniques like Heaven's Gate for WoW64 processes
 
 	// For now, we'll use NT API functions which are closer to syscalls
+	// and less likely to be hooked than Win32 APIs
 	var addr uintptr = baseAddress
 	var size uintptr = uintptr(len(buffer))
+
+	if len(buffer) == 0 {
+		Printf("Warning: Empty buffer provided for direct syscalls\n")
+		return nil
+	}
 
 	// Use NtWriteVirtualMemory instead of WriteProcessMemory
 	var bytesWritten uintptr
@@ -341,15 +354,31 @@ func DirectSyscalls(hProcess windows.Handle, baseAddress uintptr, buffer []byte)
 func ApplyAdvancedBypassOptions(hProcess windows.Handle, baseAddress uintptr, size uintptr, options BypassOptions) error {
 	Printf("Applying advanced bypass options...\n")
 
+	// Validate input parameters
+	if hProcess == 0 {
+		return fmt.Errorf("Invalid process handle")
+	}
+	if baseAddress == 0 {
+		return fmt.Errorf("Invalid base address")
+	}
+	if size == 0 {
+		return fmt.Errorf("Invalid size")
+	}
+
+	var appliedTechniques []string
+	var failedTechniques []string
+
 	// Apply PTE spoofing if enabled
 	if options.PTESpoofing {
 		Printf("Applying PTE spoofing...\n")
 		err := PTESpoofing(hProcess, baseAddress, size)
 		if err != nil {
 			Printf("Warning: PTE spoofing failed: %v\n", err)
+			failedTechniques = append(failedTechniques, "PTE Spoofing")
 			// Don't return error, continue with other techniques
 		} else {
 			Printf("PTE spoofing applied successfully\n")
+			appliedTechniques = append(appliedTechniques, "PTE Spoofing")
 		}
 	}
 
@@ -359,9 +388,11 @@ func ApplyAdvancedBypassOptions(hProcess windows.Handle, baseAddress uintptr, si
 		err := VADManipulation(hProcess, baseAddress, size)
 		if err != nil {
 			Printf("Warning: VAD manipulation failed: %v\n", err)
+			failedTechniques = append(failedTechniques, "VAD Manipulation")
 			// Don't return error, continue with other techniques
 		} else {
 			Printf("VAD manipulation applied successfully\n")
+			appliedTechniques = append(appliedTechniques, "VAD Manipulation")
 		}
 	}
 
@@ -371,28 +402,42 @@ func ApplyAdvancedBypassOptions(hProcess windows.Handle, baseAddress uintptr, si
 		err := RemoveVADNode(hProcess, baseAddress)
 		if err != nil {
 			Printf("Warning: VAD node removal failed: %v\n", err)
+			failedTechniques = append(failedTechniques, "VAD Node Removal")
 			// Don't return error, continue with other techniques
 		} else {
 			Printf("VAD node removal applied successfully\n")
+			appliedTechniques = append(appliedTechniques, "VAD Node Removal")
 		}
 	}
 
 	Printf("Advanced bypass options application completed\n")
+	Printf("Successfully applied: %v\n", appliedTechniques)
+	if len(failedTechniques) > 0 {
+		Printf("Failed techniques: %v\n", failedTechniques)
+	}
+
 	return nil
 }
 
 // GetSyscallNumber retrieves syscall number for a given function (simplified)
 func GetSyscallNumber(functionName string) (uint32, error) {
-	// This is a simplified implementation
-	// In a real implementation, we would parse ntdll.dll to extract syscall numbers
+	// This is a simplified implementation using hardcoded values
+	// In a real implementation, we would:
+	// 1. Parse ntdll.dll at runtime to extract syscall numbers
+	// 2. Handle different Windows versions (syscall numbers change)
+	// 3. Use techniques like reading from the function prologue
 
+	// Note: These syscall numbers are for Windows 10/11 x64 and may vary
 	syscallNumbers := map[string]uint32{
-		"NtAllocateVirtualMemory": NtAllocateVirtualMemory,
-		"NtProtectVirtualMemory":  NtProtectVirtualMemory,
-		"NtQueryVirtualMemory":    NtQueryVirtualMemory,
+		"NtAllocateVirtualMemory": 0x18, // May vary by Windows version
+		"NtProtectVirtualMemory":  0x50, // May vary by Windows version
+		"NtQueryVirtualMemory":    0x23, // May vary by Windows version
+		"NtWriteVirtualMemory":    0x3A, // May vary by Windows version
+		"NtReadVirtualMemory":     0x3F, // May vary by Windows version
 	}
 
 	if num, exists := syscallNumbers[functionName]; exists {
+		Printf("Retrieved syscall number 0x%X for function %s\n", num, functionName)
 		return num, nil
 	}
 
@@ -406,10 +451,33 @@ func ExecuteDirectSyscall(syscallNumber uint32, args ...uintptr) (uintptr, error
 
 	Printf("Executing direct syscall number 0x%X with %d arguments\n", syscallNumber, len(args))
 
-	// For now, we'll return success
-	// In a real implementation, this would contain assembly code like:
-	// mov eax, syscallNumber
-	// syscall (on x64) or int 2Eh (on x86)
+	// Validate syscall number
+	if syscallNumber == 0 {
+		return 0, fmt.Errorf("Invalid syscall number")
+	}
 
+	// Validate argument count (most NT syscalls have 4-11 arguments)
+	if len(args) > 11 {
+		return 0, fmt.Errorf("Too many arguments for syscall: %d", len(args))
+	}
+
+	// For now, we'll return success as this is a simplified implementation
+	// In a real implementation, this would contain assembly code like:
+	//
+	// For x64:
+	//   mov r10, rcx          ; Move first argument to r10
+	//   mov eax, syscallNumber ; Load syscall number
+	//   syscall               ; Execute syscall
+	//
+	// For x86:
+	//   mov eax, syscallNumber ; Load syscall number
+	//   int 2Eh               ; Execute syscall (or sysenter)
+	//
+	// Additional considerations:
+	// - Handle WoW64 processes (Heaven's Gate technique)
+	// - Preserve registers and stack alignment
+	// - Handle return values and error codes
+
+	Printf("Direct syscall execution completed (placeholder implementation)\n")
 	return 0, nil
 }
