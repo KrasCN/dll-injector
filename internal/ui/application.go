@@ -312,9 +312,10 @@ type Application struct {
 	searchEntry  *widget.Entry
 
 	// 控制台日志
-	consoleLog  *consoleLog
-	consoleView *ConsoleText // 改用ConsoleText组件代替Entry
-	logger      *zap.Logger
+	consoleLog      *consoleLog
+	consoleView     *ConsoleText      // 改用ConsoleText组件代替Entry
+	scrollContainer *container.Scroll // 滚动容器引用
+	logger          *zap.Logger
 
 	// 日志绑定监听器
 	logListener binding.DataListener
@@ -475,14 +476,26 @@ func (app *Application) createConsolePanel() fyne.CanvasObject {
 	scrollContainer := container.NewScroll(app.consoleView)
 	scrollContainer.SetMinSize(fyne.NewSize(800, 200)) // Set minimum size
 
+	// Store scroll container reference for auto-scrolling
+	app.scrollContainer = scrollContainer
+
 	// Set log binding listener, update UI when logs are updated
 	app.logListener = binding.NewDataListener(func() {
+		// Update log text area first
 		app.updateLogTextArea()
 
-		// Auto-scroll to bottom
-		fyne.Do(func() {
-			scrollContainer.ScrollToBottom()
-		})
+		// Auto-scroll to bottom with multiple attempts to ensure reliability
+		go func() {
+			// Multiple scroll attempts with increasing delays
+			for i := 0; i < 3; i++ {
+				time.Sleep(time.Duration(20*(i+1)) * time.Millisecond)
+				fyne.Do(func() {
+					if app.scrollContainer != nil {
+						app.scrollContainer.ScrollToBottom()
+					}
+				})
+			}
+		}()
 	})
 	app.consoleLog.binding.AddListener(app.logListener)
 
@@ -1166,7 +1179,38 @@ func (app *Application) updateLogTextArea() {
 	fyne.Do(func() {
 		// Directly set text content
 		app.consoleView.SetText(logText)
+		// Force refresh to ensure the content is updated
+		app.consoleView.Refresh()
+
+		// Also refresh the scroll container to update its content size
+		if app.scrollContainer != nil {
+			app.scrollContainer.Refresh()
+
+			// Ensure scroll position is at the bottom
+			app.ensureScrollToBottom()
+		}
 	})
+}
+
+// ensureScrollToBottom 确保滚动到底部
+func (app *Application) ensureScrollToBottom() {
+	if app.scrollContainer == nil {
+		return
+	}
+
+	// Get the content size and scroll container size
+	contentSize := app.consoleView.MinSize()
+	containerSize := app.scrollContainer.Size()
+
+	// Calculate the maximum scroll position
+	maxScroll := contentSize.Height - containerSize.Height
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+
+	// Scroll to the bottom
+	app.scrollContainer.Offset = fyne.NewPos(0, maxScroll)
+	app.scrollContainer.Refresh()
 }
 
 // Close 关闭应用程序

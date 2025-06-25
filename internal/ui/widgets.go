@@ -306,6 +306,8 @@ func NewConsoleText(backgroundColor, textColor color.Color) *ConsoleText {
 // SetText sets the text content to display
 func (t *ConsoleText) SetText(text string) {
 	t.Text = text
+	// Force size recalculation by invalidating the current size
+	t.Resize(t.MinSize())
 	t.Refresh()
 }
 
@@ -327,7 +329,20 @@ func (t *ConsoleText) CreateRenderer() fyne.WidgetRenderer {
 // MinSize returns the component's minimum size
 func (t *ConsoleText) MinSize() fyne.Size {
 	t.ExtendBaseWidget(t)
-	return t.BaseWidget.MinSize()
+
+	// Calculate actual content size based on text lines
+	if t.Text == "" {
+		return fyne.NewSize(300, 200)
+	}
+
+	lines := strings.Split(t.Text, "\n")
+	lineHeight := theme.TextSize() + 2                 // Add some padding between lines
+	totalHeight := float32(len(lines))*lineHeight + 10 // Add some padding
+
+	// Ensure minimum width
+	minWidth := float32(300)
+
+	return fyne.NewSize(minWidth, totalHeight)
 }
 
 // Console text renderer
@@ -340,8 +355,19 @@ type consoleTextRenderer struct {
 
 // MinSize returns the renderer's minimum size
 func (r *consoleTextRenderer) MinSize() fyne.Size {
-	// Give a reasonable starting size
-	return fyne.NewSize(300, 200)
+	// Calculate actual content size based on text lines
+	if r.console.Text == "" {
+		return fyne.NewSize(300, 200)
+	}
+
+	lines := strings.Split(r.console.Text, "\n")
+	lineHeight := theme.TextSize() + 2                 // Add some padding between lines
+	totalHeight := float32(len(lines))*lineHeight + 10 // Add some padding
+
+	// Ensure minimum width
+	minWidth := float32(300)
+
+	return fyne.NewSize(minWidth, totalHeight)
 }
 
 // Layout handles layout logic
@@ -394,5 +420,9 @@ func (r *consoleTextRenderer) Refresh() {
 	// Refresh all objects
 	canvas.Refresh(r.background)
 	canvas.Refresh(r.lineContainer)
+
+	// Force layout update to ensure proper sizing for scrolling
+	r.lineContainer.Refresh()
+
 	canvas.Refresh(r.console)
 }
