@@ -21,18 +21,28 @@ jobs:
       with:
         go-version: ${{ env.GO_VERSION }}
 
-    - name: Build AMD64
+    - name: Build AMD64 GUI
       env:
         GOOS: windows
         GOARCH: amd64
         CGO_ENABLED: 1
-      run: go build -o dll-injector-x64.exe ./cmd/injector
+      run: |
+        # Build GUI version with optimizations to reduce size and hide console
+        go build -ldflags="-s -w -H windowsgui" -o dll-injector-x64.exe ./cmd/injector
+
+    - name: Compress AMD64 binary
+      run: |
+        # Install UPX for binary compression
+        choco install upx -y
+        # Compress the binary (can reduce size by 50-70%)
+        upx --best --lzma dll-injector-x64.exe
 
     - name: Upload AMD64 artifact
       uses: actions/upload-artifact@v4
       with:
         name: dll-injector-amd64
-        path: dll-injector-x64.exe
+        path: |
+          dll-injector-x64.exe
 
   build-386:
     name: Build 386
@@ -54,20 +64,30 @@ jobs:
         # Add 32-bit MinGW to PATH
         echo "C:\tools\msys64\mingw32\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-    - name: Build 386
+    - name: Build 386 GUI
       env:
         GOOS: windows
         GOARCH: 386
         CGO_ENABLED: 1
         CC: C:\tools\msys64\mingw32\bin\gcc.exe
         CXX: C:\tools\msys64\mingw32\bin\g++.exe
-      run: go build -o dll-injector-x86.exe ./cmd/injector
+      run: |
+        # Build GUI version with optimizations to reduce size and hide console
+        go build -ldflags="-s -w -H windowsgui" -o dll-injector-x86.exe ./cmd/injector
+
+    - name: Compress 386 binary
+      run: |
+        # Install UPX for binary compression
+        choco install upx -y
+        # Compress the binary (can reduce size by 50-70%)
+        upx --best --lzma dll-injector-x86.exe
 
     - name: Upload 386 artifact
       uses: actions/upload-artifact@v4
       with:
         name: dll-injector-386
-        path: dll-injector-x86.exe
+        path: |
+          dll-injector-x86.exe
 
   release:
     name: Create Release
@@ -88,7 +108,7 @@ jobs:
 
     - name: Prepare release files
       run: |
-        # Copy artifacts to root directory for release
+        # Copy GUI artifacts to root directory for release
         Copy-Item "artifacts\dll-injector-amd64\dll-injector-x64.exe" -Destination "dll-injector-x64.exe"
         Copy-Item "artifacts\dll-injector-386\dll-injector-x86.exe" -Destination "dll-injector-x86.exe"
 

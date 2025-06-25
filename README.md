@@ -46,11 +46,11 @@ An advanced DLL injection tool developed in Go with Fyne, designed for the Windo
 1. Ensure Go 1.24 or higher is installed
 2. Clone the repository
 3. Get dependencies: `go mod tidy`
-4. Build the project: `go build -o injector.exe cmd/injector/main.go`
+4. Build the project: `go build -ldflags="-s -w -H windowsgui" -o dll-injector.exe ./cmd/injector`
 
 ## Usage
 
-1. Run `injector.exe`
+1. Run `dll-injector.exe`
 2. Select the DLL file to inject
 3. Choose the target process
 4. Select injection method and anti-detection options

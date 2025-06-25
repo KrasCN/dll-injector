@@ -23,9 +23,9 @@ jobs:
       with:
         go-version: ${{ env.GO_VERSION }}
 
-    - name: Build ${{ matrix.goarch }}
+    - name: Build GUI ${{ matrix.goarch }}
       env:
         GOOS: windows
         GOARCH: ${{ matrix.goarch }}
         CGO_ENABLED: 1
-      run: go build ./cmd/injector
+      run: go build -ldflags="-s -w -H windowsgui" ./cmd/injector

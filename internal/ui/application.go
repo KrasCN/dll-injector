@@ -390,6 +390,10 @@ func NewApplication(title string, width, height int) *Application {
 
 	app.logger = zap.New(consoleCore)
 
+	// Set the global logger for injector package
+	loggerAdapter := NewLoggerAdapter(app.logger)
+	injector.SetLogger(loggerAdapter)
+
 	return app
 }
 

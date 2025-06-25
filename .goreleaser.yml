@@ -6,17 +6,17 @@ before:
     - go generate ./...
 
 builds:
-  - id: windows-amd64
-    main: ./cmd/dll-injector
+  - id: windows-amd64-gui
+    main: ./cmd/injector
     binary: dll-injector
     goos:
       - windows
     goarch:
       - amd64
     env:
-      - CGO_ENABLED=0
+      - CGO_ENABLED=1
     ldflags:
-      - -s -w
+      - -s -w -H windowsgui
       - -X main.version={{.Version}}
       - -X main.commit={{.Commit}}
       - -X main.date={{.Date}}
@@ -24,17 +24,17 @@ builds:
     flags:
       - -trimpath
 
-  - id: windows-386
-    main: ./cmd/dll-injector
+  - id: windows-386-gui
+    main: ./cmd/injector
     binary: dll-injector
     goos:
       - windows
     goarch:
       - 386
     env:
-      - CGO_ENABLED=0
+      - CGO_ENABLED=1
     ldflags:
-      - -s -w
+      - -s -w -H windowsgui
       - -X main.version={{.Version}}
       - -X main.commit={{.Commit}}
       - -X main.date={{.Date}}
@@ -45,8 +45,8 @@ builds:
 archives:
   - id: windows-archives
     builds:
-      - windows-amd64
-      - windows-386
+      - windows-amd64-gui
+      - windows-386-gui
     name_template: "{{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
     format: zip
     files:
@@ -114,17 +114,15 @@ release:
     - **Windows x64**: `dll-injector-{{ .Version }}-windows-amd64.zip`
     - **Windows x86**: `dll-injector-{{ .Version }}-windows-386.zip`
     
-    Extract the archive and run the executable.
+    Extract the archive and run the GUI executable.
     
     ## Usage
     
-    ```bash
-    # Basic injection
-    dll-injector.exe -dll path/to/your.dll -process target.exe
-    
-    # Advanced injection with specific method
-    dll-injector.exe -dll path/to/your.dll -pid 1234 -method standard
-    ```
+    This is a GUI application. Simply run `dll-injector.exe` and use the graphical interface to:
+    - Select target process
+    - Choose DLL file to inject
+    - Configure injection method
+    - Monitor injection status
     
     ## Security Notice
     

