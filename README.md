@@ -32,9 +32,11 @@ An advanced DLL injection tool developed in Go with Fyne, designed for the Windo
   - Direct system calls
 
 ### Additional Features
-- Modern GUI interface using the Fyne framework
-- Display of all system processes with search and sort functionality
+- Modern GUI interface using the giu framework (Dear ImGui for Go)
+- Display of all system processes with search and filter functionality
 - Real-time injection status and logging
+- Interactive menu system with About dialog and GitHub integration
+- Responsive and intuitive user interface
 
 ## System Requirements
 
@@ -64,10 +66,9 @@ An advanced DLL injection tool developed in Go with Fyne, designed for the Windo
 ## Code Structure
 
 - `cmd/injector`: Main program entry point
-- `internal/ui`: Fyne interface implementation
+- `internal/ui`: giu-based interface implementation
 - `internal/process`: Process management functionality
 - `internal/injector`: Core DLL injection functionality
-- `internal/memory`: PE file parsing and memory operations
 
 ## License
 
