@@ -108,20 +108,8 @@ type consoleLog struct {
 	maxSize int
 }
 
-// Write implements io.Writer interface for log output
-func (c *consoleLog) Write(p []byte) (n int, err error) {
-	// 直接使用UTF-8解码字节
-	text := string(p)
-	text = strings.TrimRight(text, "\r\n")
-
-	if text == "" {
-		return len(p), nil
-	}
-
-	// 添加短时间戳
-	timestamp := time.Now().Format("15:04")
-	text = fmt.Sprintf("%s %s", timestamp, text)
-
+// addLogEntry 添加一条日志条目，处理日志轮换
+func (c *consoleLog) addLogEntry(text string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -143,6 +131,24 @@ func (c *consoleLog) Write(p []byte) (n int, err error) {
 		// 直接添加到末尾
 		c.binding.Append(text)
 	}
+}
+
+// Write implements io.Writer interface for log output
+func (c *consoleLog) Write(p []byte) (n int, err error) {
+	// 直接使用UTF-8解码字节
+	text := string(p)
+	text = strings.TrimRight(text, "\r\n")
+
+	if text == "" {
+		return len(p), nil
+	}
+
+	// 添加短时间戳
+	timestamp := time.Now().Format("15:04")
+	text = fmt.Sprintf("%s %s", timestamp, text)
+
+	// 使用通用方法添加日志
+	c.addLogEntry(text)
 
 	return len(p), nil
 }
@@ -209,27 +215,8 @@ func (c *consoleLog) WriteLog(enc zapcore.Encoder, entry zapcore.Entry, fields [
 	// 获取日志文本
 	text := sb.String()
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	// 添加日志条目
-	length := c.binding.Length()
-
-	// 如果超出最大行数，移除最早的日志
-	if length >= c.maxSize {
-		// 克隆当前日志，排除第一项
-		texts := make([]string, 0, length-1)
-		for i := 1; i < length; i++ {
-			item, _ := c.binding.GetValue(i)
-			texts = append(texts, item)
-		}
-		// 添加新日志
-		texts = append(texts, text)
-		c.binding.Set(texts)
-	} else {
-		// 直接添加到末尾
-		c.binding.Append(text)
-	}
+	// 使用通用方法添加日志
+	c.addLogEntry(text)
 
 	return nil
 }
